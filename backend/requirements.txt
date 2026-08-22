@@ -1,0 +1,26 @@
+# ---- Web 框架 ----
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+
+# ---- 配置 ----
+pydantic>=2.7
+pydantic-settings>=2.3
+
+# ---- 图像处理 / 元数据 ----
+pillow>=10.4
+exifread>=3.0
+
+# ---- HTTP 客户端（街景回查等）----
+httpx>=0.27
+
+# ---- 方案 D：本地时区解析（无网络）----
+timezonefinder>=6.5
+
+# ---- LLM 供应商 SDK ----
+openai>=1.40
+anthropic>=0.34
+google-genai>=0.7
+
+# ---- 测试 ----
+pytest>=8.2
