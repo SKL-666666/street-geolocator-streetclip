@@ -81,7 +81,7 @@ class TestConfigStore:
         assert config_store.active_config([]) is None
 
     def test_mask_key(self):
-        assert config_store.mask_key("c24b3a8e87bf4b16a3754b1a78d42cc7.f1JY") == "c24b***f1JY"
+        assert config_store.mask_key("1234567890abcdef1234567890abcdef.abcd") == "1234***abcd"
         assert config_store.mask_key("short") == "***"
         assert config_store.mask_key("") == ""
 
