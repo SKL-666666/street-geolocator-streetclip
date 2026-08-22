@@ -107,11 +107,13 @@ This project **reuses the following third-party pretrained models**. All rights 
 
 | 模型 / Model | 来源 / Source | 用途 / Use | 许可 / License |
 |---|---|---|---|
-| **StreetCLIP** | [geolocal/StreetCLIP](https://huggingface.co/geolocal/StreetCLIP) (HuggingFace) | 第一级国家分类 / Stage-1 country | **CC BY-NC 4.0（非商用）/ non-commercial** |
+| **StreetCLIP**（基于 OpenAI CLIP ViT-L/14@336 骨干） | [geolocal/StreetCLIP](https://huggingface.co/geolocal/StreetCLIP) (HuggingFace) | 第一级国家分类 / Stage-1 country | **CC BY-NC 4.0（非商用）/ non-commercial**；骨干 CLIP 为 MIT |
 | **CLIP ViT-B/16** | [OpenAI CLIP](https://github.com/openai/CLIP) via [open_clip](https://github.com/mlfoundations/open_clip) | 第二级城市（本地引擎）/ Stage-2 city (local) | MIT (open_clip) |
-| **CLIP ViT-L/14@336** | [OpenAI CLIP](https://github.com/openai/CLIP) | StreetCLIP 的骨干架构 / backbone of StreetCLIP | MIT |
-| **MixVPR** | [amaralibey/MixVPR](https://github.com/amaralibey/MixVPR) (WACV 2023) | 本地地理先验检索（可选）/ local geographic-prior retrieval (optional) | 仓库未附 LICENSE，商用前需自行核实 / no LICENSE file in repo, verify before commercial use |
 | **GLM-4.6V-FlashX** | [智谱 AI / Zhipu AI](https://open.bigmodel.cn) | 云端城市判断（可选）/ cloud city (optional) | 智谱服务条款 / Zhipu ToS |
+
+> 注：调研/试验阶段评估过但**最终产品未使用**的模型（如 GeoCLIP、OSV5M、DINOv2、SigLIP2、MixVPR 等）不在此列，本表仅列最终管线实际调用的模型。
+>
+> Note: models evaluated during research but **not used in the final product** (e.g. GeoCLIP, OSV5M, DINOv2, SigLIP2, MixVPR) are not listed — this table only covers models actually invoked by the final pipeline.
 
 本项目自身代码采用 **MIT 许可证**（见 `LICENSE`）。The project's own code is MIT licensed (see `LICENSE`).
 
@@ -135,7 +137,7 @@ docs/            文档
 
 - `backend/models/streetclip/` — StreetCLIP 权重 + CLIP 配置（tokenizer 等），从 [HuggingFace](https://huggingface.co/geolocal/StreetCLIP) 获取并放入
 - `backend/models/clipb16/` — open_clip ViT-B-16 权重（`open_clip_model.safetensors` + `open_clip_config.json`）
-- `backend/models_mixvpr/` — （可选）MixVPR 权重（`mixvpr_resnet50_4096.ckpt`，官方 GSV-Cities 预训练），仅「本地地理先验」功能需要；官方仓库未附 LICENSE，请自行核实
-  - Optional: MixVPR weights for the local geographic-prior feature only; the repo has no LICENSE file — verify before use.
+- `backend/models_mixvpr/` — **无需下载**：MixVPR 地理先验是调研期功能（方案 5），当前产品流程已停用（`enable_prior=false`），不影响使用
+  - Not needed: the MixVPR geographic-prior feature was researched but is disabled in the final pipeline — you can skip this directory.
 
-打包时 spec 会自动收集模型目录进 exe；**打包版未包含 MixVPR 权重**（该功能在打包版中自动降级跳过）。
+打包时 spec 会自动收集模型目录进 exe。
