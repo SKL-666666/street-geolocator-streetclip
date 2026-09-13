@@ -84,40 +84,13 @@ def _load_engine():
 
 
 def classify_countries(image_bytes: bytes, k: int = 5) -> list[dict]:
-    """图片 → 国家 TopK：[{"label": 国家英文名, "prob": float, "index": int}]
-
-    tta=True：多裁剪增强（原图+水平翻转+中心80%裁剪，特征平均，PIGEON验证+3~5pp）
-    temperature：温度缩放（<1让分布更尖锐，>1更平滑；PIGEON用1.6，推荐0.7）
-    """
+    """图片 → 国家 TopK：[{"label": 国家英文名, "prob": float, "index": int}]"""
     model, proc, text_feats = _load_engine()
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-
-    if tta:
-        # 多裁剪：原图 + 水平翻转 + 中心80%裁剪
-        w, h = img.size
-        crops = [
-            img,
-            img.transpose(Image.FLIP_LEFT_RIGHT),
-            img.crop((int(w * 0.1), int(h * 0.1), int(w * 0.9), int(h * 0.9)))
-        ]
-        inputs = proc(images=crops, return_tensors="pt")
-        with torch.no_grad():
-            feats = _feat_tensor(model.get_image_features(**inputs))
-            img_feat = feats.mean(dim=0, keepdim=True)  # 平均特征
-            img_feat = img_feat / img_feat.norm(dim=-1, keepdim=True)  # 重新归一化
-    else:
-        inputs = proc(images=img, return_tensors="pt")
-        with torch.no_grad():
-            img_feat = _feat_tensor(model.get_image_features(**inputs))
-
+    inputs = proc(images=img, return_tensors="pt")
     with torch.no_grad():
+        img_feat = _feat_tensor(model.get_image_features(**inputs))
         sims = (img_feat @ text_feats.T).squeeze(0)
-
-    # 温度缩放
-    if temperature != 1.0:
-        sims = sims / temperature
-
-    # 每国家取 3 模板等权平均分
     country_scores = []
     for i, c in enumerate(COUNTRIES):
         s = sims[i * len(TEMPLATES): (i + 1) * len(TEMPLATES)].mean().item()
