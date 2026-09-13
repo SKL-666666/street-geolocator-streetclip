@@ -97,6 +97,12 @@ async function submitFeedbackGood() {
   fbSubmitted.value = true
 }
 
+function onMapPick(event) {
+  // MapPanel 点击事件：event.detail = { lat, lon }
+  const detail = event?.detail || event
+  fbPick.value = { lat: detail?.lat || detail?.center?.lat || 0, lon: detail?.lon || detail?.center?.lng || 0 }
+}
+
 async function submitFeedbackPick() {
   if (!task.value || !fbPick.value) return
   await fetch(`/api/tasks/${task.value.task_id}/feedback`, {
@@ -207,17 +213,7 @@ onUnmounted(() => {
       </div>
 
       <!-- 用户反馈 -->
-      <div v-if="!fbSubmitted" class="card feedback-card">
-        <div class="fb-actions">
-          <button class="fb-btn fb-good" @click="submitFeedbackGood">✓ 正确</button>
-          <button class="fb-btn fb-bad" @click="fbSubmitted = true; fbBad = true">✗ 不对</button>
-        </div>
-      </div>
-      <div v-if="fbBad && !fbSubmitted" class="card fb-correction-card">
-        <div class="fb-correction-title">请点击地图上的正确位置</div>
-        <MapPanel :candidates="[]" :focus-candidate="fbPick" @map-click="fbPick = $event; fbSubmitted = true; submitFeedbackPick()" />
-      </div>
-      <div v-if="fbSubmitted && !fbBad" class="card fb-thanks">已记录 ✓</div>
+      
       <div v-if="fbSubmitted && fbBad" class="card fb-thanks">已记录，感谢纠正 ✓</div>
 
       <!-- EXIF GPS 参考信息（已移除"直接定位"：仅供对比，定位基于图像分析） -->
@@ -301,6 +297,21 @@ onUnmounted(() => {
 
       </div>
     </div>
+    <!-- 反馈区：结果页最底部 -->
+    <div v-if="task.candidates && task.candidates.length && !fbSubmitted" class="card feedback-card" style="margin-top: 16px">
+      <h3>评价结果</h3>
+      <div class="fb-actions">
+        <button class="fb-btn fb-good" @click="submitFeedbackGood">正确</button>
+        <button class="fb-btn fb-bad" @click="fbBad = true">不对，点这里纠正</button>
+      </div>
+      <div v-if="fbBad" class="fb-map-pick">
+        <p style="font-size:13px;color:#6b7280;margin:6px 0">点击地图上的正确位置</p>
+        <MapPanel :candidates="[]" :focus-candidate="fbPick" @map-click="onMapPick" />
+        <button class="fb-btn fb-submit" @click="submitFeedbackPick" :disabled="!fbPick">提交纠正</button>
+      </div>
+    </div>
+    <div v-if="fbSubmitted" class="card" style="text-align:center;color:#059669;padding:16px">已记录，感谢反馈</div>
+
   </div>
 </template>
 
@@ -349,7 +360,6 @@ onUnmounted(() => {
 .fb-correction { margin-top: 10px; }
 .fb-fields { display: flex; gap: 10px; }
 .fb-input { flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
-.fb-actions { display: flex; gap: 12px; justify-content: center; padding: 10px 0; }
 .fb-btn { padding: 10px 24px; border: 2px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.15s; }
 .fb-btn:hover { border-color: #9ca3af; }
 .fb-good { color: #059669; } .fb-good:hover { background: #ecfdf5; border-color: #059669; }
@@ -411,6 +421,20 @@ onUnmounted(() => {
 }
 
 .card + .card { margin-top: 16px; }
+
+
+.feedback-card h3 { margin-bottom: 10px; }
+.fb-actions { display: flex; gap: 12px; justify-content: center; padding: 8px 0; }
+.fb-btn { padding: 10px 28px; border: 1.5px solid #e5e7eb; border-radius: 8px; background: #fff;
+  cursor: pointer; font-size: 15px; font-weight: 600; transition: all 0.15s; }
+.fb-btn:hover { border-color: #9ca3af; background: #f9fafb; }
+.fb-btn:disabled { opacity: 0.4; cursor: default; }
+.fb-good { color: #059669; border-color: #059669; }
+.fb-good:hover { background: #ecfdf5; }
+.fb-bad { color: #dc2626; border-color: #dc2626; }
+.fb-bad:hover { background: #fef2f2; }
+.fb-map-pick { margin-top: 12px; }
+.fb-submit { margin-top: 8px; border-color: #2563eb; color: #2563eb; }
 
 /* 竖屏/窄屏适配（16:9 → 9:16）：候选行换行堆叠，地图高度随可用高度缩放 */
 @media (max-width: 640px) {
