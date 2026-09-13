@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { fetchTask, retryTask, confidenceLabel } from '../api'
 import MapPanel from '../components/MapPanel.vue'
 
@@ -106,9 +106,13 @@ function onMapPick(event) {
 // 纠正模式开启时，默认飞到系统预测点
 function onBadClick() {
   fbBad.value = true
-  // 地图默认飞到系统 Top1 预测点
   const top = sortedCandidates.value[0]?.c
-  if (top) fbPick.value = { lat: top.lat, lon: top.lon }
+  if (top) {
+    fbPick.value = { lat: top.lat, lon: top.lon }
+    nextTick(() => {
+      feedbackMapRef.value?.flyTo?.({ center: [top.lon, top.lat], zoom: 10 })
+    })
+  }
   if (top) {
   
   }
@@ -315,7 +319,7 @@ onUnmounted(() => {
         <button class="fb-btn fb-good" @click="submitFeedbackGood">正确</button>
         <button class="fb-btn fb-bad" @click="onBadClick">不对，点这里纠正</button>
       </div>
-      <div v-if="fbBad" class="fb-map-pick">
+      <div v-show="fbBad" class="fb-map-pick">
         <p style="font-size:13px;color:#6b7280;margin:6px 0">点击地图上的正确位置</p>
         <MapPanel ref="feedbackMapRef" :candidates="[]" :center="fbPick ? [fbPick.lon, fbPick.lat] : null" :focus-candidate="fbPick" :clickable="true" @map-click="onMapPick" />
         <button class="fb-btn fb-submit" @click="submitFeedbackPick" :disabled="!fbPick">提交纠正</button>
@@ -447,6 +451,11 @@ onUnmounted(() => {
 .fb-map-pick { margin-top: 12px; }
 .fb-submit { margin-top: 8px; border-color: #2563eb; color: #2563eb; }
 
+
+.fb-map-pick { margin-top: 12px; min-height: 300px; }
+.fb-map-pick p { margin-bottom: 6px; }
+.fb-submit { margin-top: 8px; border-color: #2563eb; color: #2563eb; }
+.fb-done { text-align: center; color: #059669; padding: 16px; }
 /* 竖屏/窄屏适配（16:9 → 9:16）：候选行换行堆叠，地图高度随可用高度缩放 */
 @media (max-width: 640px) {
   .bar-row {
