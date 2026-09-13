@@ -15,6 +15,7 @@ const emit = defineEmits(['map-click'])
 const container = ref(null)
 let map = null
 let markers = []
+let pickMarker = null
 let tileErrors = 0
 let currentSource = 'esri'  // esri(WGS-84) | tencent(GCJ-02) | huawei(GCJ-02)
 
@@ -243,7 +244,15 @@ onMounted(() => {
   map.addControl(new maplibregl.NavigationControl(), 'top-right')
     map.on('load', renderMarkers)
     map.on('click', (e) => {
-      if (props.clickable) emit('map-click', { lat: e.lngLat.lat, lon: e.lngLat.lng })
+      if (props.clickable) {
+        // 清除旧图钉
+        if (pickMarker) pickMarker.remove()
+        // 在点击位置放新图钉
+        pickMarker = new maplibregl.Marker({ color: '#dc2626' })
+          .setLngLat([e.lngLat.lng, e.lngLat.lat])
+          .addTo(map)
+        emit('map-click', { lat: e.lngLat.lat, lon: e.lngLat.lng })
+      }
     })
   // Esri 瓦片加载失败累计 → 自动降级腾讯（快速稳定双保险）
   map.on('error', (e) => {
