@@ -91,6 +91,7 @@ async function submit() {
     for (const f of files.value) {
       try {
         ids.push(await uploadImage(f, mode.value, scope.value,
+          enableOcr.value, enableBaidu.value))
       } catch (e) {
         error.value = `${f.name}: ${e.message}`
       }
