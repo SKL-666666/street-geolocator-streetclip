@@ -110,7 +110,14 @@ def classify_all(image_bytes: bytes) -> dict:
         if best_score < 0.12:
             continue
         prompt = FEATURES[key]["prompts"][best_idx]
-        priors_cfg, weight = FEATURES[key]["priors"].get(prompt, ([], 0))
+        # priors 的键是关键词（desert/unpaved/wooden…），提示词是完整短语 → 子串匹配
+        priors_cfg, weight = [], 0.0
+        for kw, (cs, w) in FEATURES[key]["priors"].items():
+            if kw.lower() in prompt.lower():
+                priors_cfg, weight = cs, w
+                break
+        if not priors_cfg:
+            continue
         for c in priors_cfg:
             all_priors[c] = all_priors.get(c, 0) + weight
         summary.append(f"{key}:{prompt[:30]}({best_score:.2f})")
