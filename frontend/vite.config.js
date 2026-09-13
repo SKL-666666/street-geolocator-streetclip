@@ -8,7 +8,7 @@ export default defineConfig({
     proxy: {
       // 开发模式：/api 转发到后端
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8200',
         changeOrigin: true,
       },
     },

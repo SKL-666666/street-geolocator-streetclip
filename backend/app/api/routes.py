@@ -197,7 +197,8 @@ async def setup_llm(request: Request,
 
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(request: Request, file: UploadFile = File(...),
-                  mode: str = Form("local"), scope: str = Form("world")):
+                  mode: str = Form("local"), scope: str = Form("world"),
+                  enable_ocr: str = Form(""), enable_baidu: str = Form("")):
     orch: Orchestrator = _get_orchestrator(request)
 
     # 预热中：本地模型未就绪，拒绝上传（避免任务排队卡住）
@@ -220,8 +221,10 @@ async def analyze(request: Request, file: UploadFile = File(...),
 
     valid_modes = set(ANALYZE_MODES.keys())
     mode = mode.lower() if mode.lower() in valid_modes else settings.analyze_mode
-    scope = scope if scope in ("world", "no-cn") else "world"  # cn 已移除
-    task_id = orch.submit(data, file.filename or "upload.jpg", mode=mode, scope=scope)
+    scope = scope if scope in ("world", "no-cn", "cn") else "world"
+    task_id = orch.submit(data, file.filename or "upload.jpg", mode=mode, scope=scope,
+                          enhance_ocr=enable_ocr == "1",
+                          enhance_baidu=enable_baidu == "1")
     return AnalyzeResponse(task_id=task_id)
 
 

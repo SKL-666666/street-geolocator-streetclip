@@ -15,11 +15,16 @@ function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}') } catch { return {} }
 }
 function savePrefs() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify({ mode: mode.value, scope: scope.value })) } catch { /* 隐私模式忽略 */ }
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({
+    mode: mode.value, scope: scope.value,
+    enableOcr: enableOcr.value, enableBaidu: enableBaidu.value
+  })) } catch { /* 隐私模式忽略 */ }
 }
 const prefs = loadPrefs()
 const mode = ref('local')  // 仅本地模式（本地判国家 + 城市引擎）
-const scope = ref(['world', 'no-cn'].includes(prefs.scope) ? prefs.scope : 'world')
+const scope = ref(['world', 'no-cn', 'cn'].includes(prefs.scope) ? prefs.scope : 'world')
+const enableOcr = ref(prefs.enableOcr ?? false)
+const enableBaidu = ref(prefs.enableBaidu ?? false)
 const progress = ref({ done: 0, total: 0 })
 
 const canSubmit = computed(() => files.value.length && !uploading.value && !api.warmingUp &&
@@ -85,7 +90,8 @@ async function submit() {
   try {
     for (const f of files.value) {
       try {
-        ids.push(await uploadImage(f, mode.value, scope.value))
+        ids.push(await uploadImage(f, mode.value, scope.value,
+        enableOcr.value, enableBaidu.value))
       } catch (e) {
         error.value = `${f.name}: ${e.message}`
       }
@@ -118,7 +124,7 @@ async function submit() {
         </button>
       </div>
 
-      <!-- 范围选择（仅 全世界 / 除中国大陆；仅中国大陆已移除） -->
+      <!-- 范围选择（全世界 / 除中国大陆 / 中国模式） -->
       <div class="scopes">
         <button class="scope-card" :class="{ active: scope === 'world' }" @click="scope = 'world'; savePrefs()">
           🌐 全世界
@@ -126,9 +132,33 @@ async function submit() {
         <button class="scope-card" :class="{ active: scope === 'no-cn' }" @click="scope = 'no-cn'; savePrefs()">
           🌏 除中国大陆
         </button>
+        <button class="scope-card china" :class="{ active: scope === 'cn' }" @click="scope = 'cn'; savePrefs()">
+          🇨🇳 中国模式
+        </button>
       </div>
       <div v-if="scope === 'no-cn'" class="scope-note">
         将排除中国大陆候选，且图片中的中文文字不会被作为推理依据。
+      </div>
+      <div v-if="scope === 'cn'" class="scope-note china-note">
+        中国模式：直接用城市模型推断中国城市（更快、更准），跳过国家级步骤。
+      </div>
+
+      <!-- 增强选项（用户勾选） -->
+      <div class="enhance-toggles">
+        <label class="ds-toggle" :class="{ on: enableOcr }">
+          <input type="checkbox" v-model="enableOcr" @change="savePrefs()" />
+          <span>
+            <b>📝 OCR 文字 + 搜索验证</b>
+            <small>识别图中文字 → Tavily 搜索验证地名（每张 +3s，有文字时有效）</small>
+          </span>
+        </label>
+        <label v-if="scope === 'cn'" class="ds-toggle" :class="{ on: enableBaidu }">
+          <input type="checkbox" v-model="enableBaidu" @change="savePrefs()" />
+          <span>
+            <b>🔍 百度识图</b>
+            <small>反向搜图识别地标（每张 +15s，对著名地标有效）</small>
+          </span>
+        </label>
       </div>
 
       <!-- 本地模式城市引擎 -->
@@ -230,7 +260,10 @@ async function submit() {
   transition: border-color 0.15s, background 0.15s;
 }
 .scope-card.active { border-color: #059669; background: #ecfdf5; }
+.scope-card.china.active { border-color: #dc2626; background: #fef2f2; }
 .scope-note { font-size: 12px; color: #065f46; background: #ecfdf5; border-radius: 8px; padding: 6px 10px; margin-bottom: 4px; }
+.china-note { color: #991b1b; background: #fef2f2; }
+.enhance-toggles { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 4px; }
 
 .ds-toggle {
   display: flex;

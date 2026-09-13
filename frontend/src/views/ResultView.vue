@@ -155,7 +155,7 @@ onUnmounted(() => {
           </span>
           <span class="badge">{{ MODE_LABEL[task.mode] || task.mode }}模式</span>
           <span class="badge" :class="{ exact: task.meta?.scope === 'world' }">
-            {{ task.meta?.scope === 'no-cn' ? '除中国大陆' : '全世界' }}
+            {{ task.meta?.scope === 'cn' ? '🇨🇳 中国模式' : task.meta?.scope === 'no-cn' ? '除中国大陆' : '全世界' }}
           </span>
         </div>
         <div class="muted">
@@ -244,6 +244,32 @@ onUnmounted(() => {
             <span class="bar-hint" v-if="shortHint(item.c)">⚠ {{ shortHint(item.c) }}</span>
           </div>
         </div>
+
+        <!-- OCR 文字识别 + 搜索验证 + 百度识图 -->
+        <div v-if="task.facts && task.facts.length" class="card enhance-card">
+          <h3>🔬 增强分析</h3>
+          <div v-for="f in task.facts" :key="f.tool + f.query" class="enhance-row">
+            <span class="badge enhance-badge">{{ f.tool === 'ocr' ? '📝 OCR' : f.tool === 'tavily' ? '🔍 Tavily' : f.tool === 'baidu' ? '📷 百度' : f.tool }}</span>
+            <div class="enhance-body">
+              <div class="enhance-summary">{{ f.summary }}</div>
+              <div v-if="f.ok" class="enhance-detail muted">✅ 有效信号，已参与加权</div>
+              <div v-else class="enhance-detail muted warn">⚠ 未产生有效信号</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 判断理由 -->
+        <div v-if="task.candidates && task.candidates.length" class="card reason-card">
+          <h3>💡 判断理由</h3>
+          <div v-for="c in task.candidates.slice(0, 3)" :key="c.rank" class="reason-row">
+            <div class="reason-rank">#{{ c.rank }}</div>
+            <div class="reason-content">
+              <div class="reason-location"><b>{{ c.country_zh || c.country }}</b> {{ c.city_zh || c.city || '' }}</div>
+              <div class="reason-score">置信度: {{ (c.score * 100).toFixed(0) }}% · {{ c.accuracy_hint || '' }}</div>
+              <div v-for="(e, i) in (c.evidence || [])" :key="i" class="reason-evidence muted">· {{ e }}</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -273,6 +299,20 @@ onUnmounted(() => {
 .retry-row { display: flex; align-items: center; gap: 10px; }
 .export-row { display: flex; gap: 8px; }
 .btn-sm { padding: 6px 12px; font-size: 13px; text-decoration: none; }
+.enhance-card h3 { margin-bottom: 10px; }
+.enhance-row { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; align-items: flex-start; }
+.enhance-badge { white-space: nowrap; font-size: 12px; padding: 3px 8px; }
+.enhance-body { flex: 1; }
+.enhance-summary { font-size: 13px; color: #374151; }
+.enhance-detail { font-size: 12px; margin-top: 2px; }
+.enhance-detail.warn { color: #92400e; }
+.reason-card h3 { margin-bottom: 10px; }
+.reason-row { display: flex; gap: 10px; padding: 6px 0; }
+.reason-rank { font-weight: 700; color: #2563eb; font-size: 14px; min-width: 24px; }
+.reason-content { flex: 1; }
+.reason-location { font-size: 14px; margin-bottom: 2px; }
+.reason-score { font-size: 12px; color: #6b7280; }
+.reason-evidence { font-size: 12px; color: #4b5563; margin-top: 2px; line-height: 1.4; }
 .exact-banner {
   background: #d1fae5; color: #065f46;
   padding: 10px 14px; border-radius: 8px; margin-bottom: 12px;

@@ -13,7 +13,8 @@ const topCountries = computed(() =>
 const okFacts = computed(() => props.facts.filter((f) => f.ok))
 const failFacts = computed(() => props.facts.filter((f) => !f.ok))
 
-const TOOL_LABEL = { geocode: '📍 地理编码', wiki: '📚 百科查证', timezone: '🕐 时区', streetview: '🛣️ 街景' }
+const TOOL_LABEL = { geocode: '📍 地理编码', wiki: '📚 百科查证', timezone: '🕐 时区', streetview: '🛣️ 街景',
+  ocr: '📝 OCR 文字识别', tavily: '🔍 搜索验证', baidu: '📷 百度识图' }
 </script>
 
 <template>

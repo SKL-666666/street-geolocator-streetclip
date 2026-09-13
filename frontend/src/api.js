@@ -104,7 +104,7 @@ export async function deleteLLMConfig(configId) {
   return (await res.json()).configs || []
 }
 
-export async function uploadImage(file, mode = 'local', scope = 'world') {
+export async function uploadImage(file, mode = 'local', scope = 'world', enableOcr = false, enableBaidu = false) {
   // 云端 LLM 定城市且未配置 Key：直接拒绝发送图片（后端 503 双重兜底）
   if (api.needsSetup && api.localCityEngine === 'llm') {
     throw new Error('云端 LLM 定城市需要 API Key：请先到「⚙️ 设置」填写，或切到「本地 CLIP-B/16」城市引擎')
@@ -113,6 +113,8 @@ export async function uploadImage(file, mode = 'local', scope = 'world') {
   form.append('file', file)
   form.append('mode', mode)
   form.append('scope', scope)
+  if (enableOcr) form.append('enable_ocr', '1')
+  if (enableBaidu) form.append('enable_baidu', '1')
   const res = await fetch('/api/analyze', { method: 'POST', body: form })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))

@@ -150,14 +150,17 @@ class Orchestrator:
     # ---------- 对外接口 ----------
 
     def submit(self, image_bytes: bytes, filename: str, mode: str = "local",
-               scope: str = "world") -> str:
+               scope: str = "world", enhance_ocr: bool = False,
+               enhance_baidu: bool = False) -> str:
         mode = (mode or settings.analyze_mode).lower()
-        scope = scope if scope in ("world", "no-cn") else "world"  # cn 已移除
+        scope = scope if scope in ("world", "no-cn", "cn") else "world"
         # 缓存机制已移除：每次上传都重新分析（保证结果新鲜）
         task_id = uuid.uuid4().hex[:12]
         result = TaskResult(task_id=task_id, filename=filename, stage="queued",
                             status=TaskStatus.PENDING, mode=mode,
-                            meta={"scope": scope})
+                            meta={"scope": scope,
+                                  "enhance_ocr": enhance_ocr,
+                                  "enhance_baidu": enhance_baidu})
         # 保存原图（供失败/降级后一键重试；保存失败不阻塞分析）
         try:
             from pathlib import Path
@@ -421,12 +424,43 @@ class Orchestrator:
                      message="本地模型分类（免费，不调用 LLM）")
         try:
             if scope == "cn":
-                # 本地模型是 55 国粗判，无中国细分 → 不支持仅中国大陆
-                result.confidence_level = "none"
-                result.scene = SceneAnalysis(is_street_view=True, scene_type="street",
-                                             summary="本地模型不支持'仅中国大陆'（无中国细分）")
+                # 中国模式：跳过 StreetCLIP 国家，直接用城市模型推断中国城市
+                from ..geokb.local_engine import classify_cities, model_name, _encode_image
+                from ..geokb.citylib import city_coords, city_zh
+                self._update(result, progress=40, stage="scene",
+                             message="中国模式：直接推断城市（免费）")
+                try:
+                    img_feat = await asyncio.to_thread(_encode_image, image_bytes)
+                    hits = await asyncio.to_thread(
+                        classify_cities, image_bytes, "China", 3, None, img_feat)
+                except Exception:
+                    hits = []
+                candidates = []
+                for rank, h in enumerate(hits, 1):
+                    candidates.append(Candidate(
+                        rank=rank, lat=h["lat"], lon=h["lon"],
+                        score=round(h["prob"], 3), source="local",
+                        country="China", country_zh="中国",
+                        city=h["label"], city_zh=city_zh(h["label"]),
+                        accuracy_hint="城市级（中国模式：直接推断）",
+                        evidence=[f"本地模型 {model_name()}：{h['label']}（{h['prob']:.1%}）"],
+                    ))
+                if not candidates:
+                    candidates = _fallback_candidate("cn")
+                result.candidates = candidates
+                # OCR + Tavily 增强（cn 模式）
+                if (result.meta or {}).get("enhance_ocr") and candidates:
+                    try:
+                        result.candidates = self._ocr_tavily_enhance(
+                            image_bytes, result.candidates, result)
+                    except Exception:
+                        pass
+                result.confidence_level = "city" if candidates[0].source == "local" else "none"
+                result.scene = SceneAnalysis(
+                    is_street_view=True, scene_type="street",
+                    summary=f"中国模式 Top1：{candidates[0].city_zh}")
                 self._update(result, progress=100, stage="done",
-                             message="本地模型不支持'仅中国大陆'（无中国细分），请切换 LLM 模式",
+                             message=f"中国模式完成：{candidates[0].city_zh}",
                              status=TaskStatus.SUCCEEDED)
                 return
             from ..geokb.local_engine import (
@@ -487,6 +521,16 @@ class Orchestrator:
                         self._append_capital_candidate(candidates, rank, t, country)
             self._update(result, progress=70, stage="scene", message="生成候选位置")
             result.candidates = candidates
+
+            # ---- OCR + Tavily 增强（用户勾选时触发）----
+            meta = result.meta or {}
+            if meta.get("enhance_ocr") and candidates:
+                try:
+                    result.candidates = self._ocr_tavily_enhance(
+                        image_bytes, candidates, result)
+                except Exception:
+                    pass  # OCR/Tavily 失败不阻塞主流程
+
             top_name = candidates[0].city_zh if candidates else "无"
             result.scene = SceneAnalysis(
                 is_street_view=True, scene_type="street",
@@ -530,7 +574,77 @@ class Orchestrator:
         return out
 
     @staticmethod
-    def _has_confirmed(result: TaskResult) -> bool:
+    def _ocr_tavily_enhance(image_bytes, candidates, result):
+        """OCR + Tavily 增强：提取文字 → 搜索验证 → 加权融合到候选分数。"""
+        import re, io
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+        except ImportError:
+            return candidates
+        ocr = RapidOCR()
+        img = Image.open(io.BytesIO(image_bytes))
+        ocr_results, _ = ocr(img)
+        if not ocr_results:
+            result.facts.append(ToolFact(tool="ocr", query="", summary="无文字", ok=False))
+            return candidates
+        # 从 OCR 结果提取文字
+        texts = [r[1] for r in ocr_results if len(r[1]) >= 2]
+        if not texts:
+            return candidates
+        # 关键词：非数字、长度 >= 3
+        keywords = [t for t in texts if len(t) >= 3 and not t.isdigit()][:2]
+        result.facts.append(ToolFact(tool="ocr", query=str(keywords),
+            summary=f"识别文字: {', '.join(texts[:5])}", ok=True))
+        if not keywords:
+            return candidates
+        # Tavily 搜索
+        import httpx as _httpx
+        TAVILY_KEY = getattr(settings, "tavily_api_key", "") or "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"
+        if not TAVILY_KEY:
+            return candidates  # 未配置 Tavily Key，跳过
+        try:
+            with _httpx.Client(timeout=12) as c:
+                r = c.post("https://api.tavily.com/search", json={
+                    "query": " ".join(keywords), "search_depth": "basic",
+                    "include_answer": True, "max_results": 2
+                }, headers={"Authorization": f"Bearer {TAVILY_KEY}"})
+            if r.status_code != 200:
+                return candidates
+            answer = r.json().get("answer", "")
+            # 从 answer 第一句话提取国家
+            CN_MAP = {"法国": "France", "意大利": "Italy", "奥地利": "Austria",
+                      "德国": "Germany", "英国": "United Kingdom", "捷克": "Czechia",
+                      "匈牙利": "Hungary", "波兰": "Poland", "乌克兰": "Ukraine",
+                      "中国": "China", "蒙古": "Mongolia", "日本": "Japan",
+                      "巴西": "Brazil", "玻利维亚": "Bolivia", "智利": "Chile",
+                      "阿根廷": "Argentina", "秘鲁": "Peru", "美国": "United States",
+                      "加拿大": "Canada", "俄罗斯": "Russia", "澳大利亚": "Australia",
+                      "南非": "South Africa", "肯尼亚": "Kenya", "印度": "India"}
+            first = re.split(r'[.。]', answer)[0]
+            tav_country = None
+            for cn, en in CN_MAP.items():
+                if cn in first:
+                    tav_country = en
+                    break
+            if not tav_country:
+                # 英文匹配
+                from ..geokb.countries import COUNTRY_ALIASES
+                for c in COUNTRY_ALIASES.values():
+                    if c.lower() in first.lower():
+                        tav_country = c
+                        break
+            result.facts.append(ToolFact(tool="tavily", query=" ".join(keywords),
+                summary=f"Tavily: {answer[:80]}... → {tav_country}",
+                ok=tav_country is not None))
+            if tav_country:
+                # 在候选中找对应国家并加权
+                for c in candidates:
+                    if c.country == tav_country:
+                        c.score = round(c.score * 1.15 + 0.03, 3)
+                        c.evidence.append(f"OCR+Tavily 验证指向 {tav_country}")
+        except Exception:
+            pass
+        return candidates
         return any("✅" in ev for c in result.candidates for ev in c.evidence)
 
     async def _streetview_pass(self, result: TaskResult, scene: SceneAnalysis,
