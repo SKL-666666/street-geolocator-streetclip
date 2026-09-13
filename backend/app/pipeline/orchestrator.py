@@ -537,7 +537,22 @@ class Orchestrator:
                 except Exception:
                     pass  # OCR/Tavily 失败不阻塞主流程
 
-            # ---- 植被/气候分类（始终运行，轻量）----
+            
+            # ---- 用户反馈先验校正（从历史反馈中学习）----
+            try:
+                from .feedback_analysis import build_prior_correction, load_feedback
+                fb_dir = settings.data_dir / "feedback"
+                feedbacks = load_feedback(fb_dir)
+                if feedbacks:
+                    corrections = build_prior_correction(feedbacks)
+                    for cand in candidates:
+                        if cand.country in corrections:
+                            cand.score = round(cand.score * corrections[cand.country], 3)
+                            cand.evidence.append(f"反馈校正: {cand.country} ×{corrections[cand.country]:.2f}")
+            except Exception:
+                pass
+
+# ---- 植被/气候分类（始终运行，轻量）----
             try:
                 from .climate import classify_climate
                 climate = classify_climate(image_bytes)

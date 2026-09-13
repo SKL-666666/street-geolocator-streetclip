@@ -88,6 +88,7 @@ const focusCandidate = ref(null)  // 地图要聚焦的候选对象（不依赖�
 const fbSubmitted = ref(false)
 const fbBad = ref(false)
 const fbPick = ref(null)
+const feedbackMapRef = ref(null)
 
 async function submitFeedbackGood() {
   if (!task.value) return
@@ -98,9 +99,19 @@ async function submitFeedbackGood() {
 }
 
 function onMapPick(event) {
-  // MapPanel 点击事件：event.detail = { lat, lon }
   const detail = event?.detail || event
   fbPick.value = { lat: detail?.lat || detail?.center?.lat || 0, lon: detail?.lon || detail?.center?.lng || 0 }
+}
+
+// 纠正模式开启时，默认飞到系统预测点
+function onBadClick() {
+  fbBad.value = true
+  // 地图默认飞到系统 Top1 预测点
+  const top = sortedCandidates.value[0]?.c
+  if (top) fbPick.value = { lat: top.lat, lon: top.lon }
+  if (top) {
+  
+  }
 }
 
 async function submitFeedbackPick() {
@@ -302,11 +313,11 @@ onUnmounted(() => {
       <h3>评价结果</h3>
       <div class="fb-actions">
         <button class="fb-btn fb-good" @click="submitFeedbackGood">正确</button>
-        <button class="fb-btn fb-bad" @click="fbBad = true">不对，点这里纠正</button>
+        <button class="fb-btn fb-bad" @click="onBadClick">不对，点这里纠正</button>
       </div>
       <div v-if="fbBad" class="fb-map-pick">
         <p style="font-size:13px;color:#6b7280;margin:6px 0">点击地图上的正确位置</p>
-        <MapPanel :candidates="[]" :focus-candidate="fbPick" :clickable="true" @map-click="onMapPick" />
+        <MapPanel ref="feedbackMapRef" :candidates="[]" :center="fbPick ? [fbPick.lon, fbPick.lat] : null" :focus-candidate="fbPick" :clickable="true" @map-click="onMapPick" />
         <button class="fb-btn fb-submit" @click="submitFeedbackPick" :disabled="!fbPick">提交纠正</button>
       </div>
     </div>
