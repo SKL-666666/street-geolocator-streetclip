@@ -24,7 +24,98 @@ const prefs = loadPrefs()
 const mode = ref('local')  // 仅本地模式（本地判国家 + 城市引擎）
 const scope = ref(['world', 'no-cn', 'cn'].includes(prefs.scope) ? prefs.scope : 'world')
 const enableOcr = ref(prefs.enableOcr ?? false)
-"
+const progress = ref({ done: 0, total: 0 })
+
+const canSubmit = computed(() => files.value.length && !uploading.value && !api.warmingUp &&
+  !(api.needsSetup && api.localCityEngine === 'llm'))
+const modeList = computed(() => Object.entries(api.modes).map(([k, v]) => ({ key: k, ...v })))
+
+async function onCityEngine(e) {
+  const v = e.target.value
+  api.localCityEngine = v  // 立即反馈
+  await savePrefsApi({ localCityEngine: v })
+}
+
+function addFiles(list) {
+  error.value = ''
+  const ok = [...list].filter((f) => f.type.startsWith('image/'))
+  if (ok.length !== list.length) error.value = '已忽略非图片文件'
+  for (const f of ok) {
+    files.value.push(f)
+    previews.value.push(URL.createObjectURL(f))
+  }
+}
+
+// 全局粘贴：在页面任意位置 Ctrl+V 图片（截图/复制图片）直接加入待分析
+function onGlobalPaste(e) {
+  const items = e.clipboardData?.items || []
+  for (const it of items) {
+    if (it.type?.startsWith('image/')) {
+      const f = it.getAsFile()
+      if (f) {
+        addFiles([f])
+        e.preventDefault()
+        break
+      }
+    }
+  }
+}
+
+onMounted(() => window.addEventListener('paste', onGlobalPaste))
+onUnmounted(() => window.removeEventListener('paste', onGlobalPaste))
+
+function onFileInput(e) {
+  if (e.target.files?.length) addFiles(e.target.files)
+  e.target.value = ''
+}
+
+function removeFile(i) {
+  URL.revokeObjectURL(previews.value[i])
+  files.value.splice(i, 1)
+  previews.value.splice(i, 1)
+}
+
+function onDrop(e) {
+  dragOver.value = false
+  if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files)
+}
+
+async function submit() {
+  if (!canSubmit.value) return
+  uploading.value = true
+  error.value = ''
+  const ids = []
+  progress.value = { done: 0, total: files.value.length }
+  try {
+    for (const f of files.value) {
+      try {
+        ids.push(await uploadImage(f, mode.value, scope.value, enableOcr.value))
+      } catch (e) {
+        error.value = `${f.name}: ${e.message}`
+      }
+      progress.value.done++
+    }
+    if (ids.length) emit('analyzed', ids)
+  } finally {
+    uploading.value = false
+  }
+}
+</script>
+
+<template>
+  <div class="upload-wrap">
+    <div class="card upload-card">
+      <h2>上传街景照片</h2>
+      <p class="muted">支持多选，Ctrl+V 直接粘贴图片</p>
+
+      <!-- 模式选择 -->
+      <div class="modes">
+        <button
+          v-for="m in modeList"
+          :key="m.key"
+          class="mode-card"
+          :class="{ active: mode === m.key }"
+          @click="mode = m.key; savePrefs()"
         >
           <div class="mode-name">{{ m.label }}</div>
           <div class="mode-desc">{{ m.desc }}</div>
