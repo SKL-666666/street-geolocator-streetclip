@@ -149,12 +149,7 @@ async function submit() {
           <span>
             <b>📝 OCR 文字 + 搜索验证</b>
             <small>识别图中文字 → Tavily 搜索验证地名（每张 +3s，有文字时有效）</small>
-          </span>
-        </label>
-          <span>
-            <small>原图+翻转+裁剪三路推理取平均（每张推理时间×3，+3~5pp）</small>
-          </span>
-        </label>
+
         <label v-if="scope === 'cn'" class="ds-toggle" :class="{ on: enableBaidu }">
           <input type="checkbox" v-model="enableBaidu" @change="savePrefs()" />
           <span>
