@@ -198,7 +198,7 @@ async function submit() {
             <div class="muted">已选 {{ files.length }} 张 · 点击或拖拽继续添加</div>
           </template>
           <template v-else>
-            <div class="dz-icon">🖼️</div>
+            <div class="dz-icon">◆</div>
             <div>点击选择图片（可多选）、拖拽到此处，或直接 <b>Ctrl+V 粘贴</b></div>
             <div class="muted">JPG / PNG / WebP，每张 ≤ 20MB</div>
           </template>
@@ -212,11 +212,11 @@ async function submit() {
       </div>
       <!-- 预热中：本地模型加载，禁止上传 -->
       <div v-if="api.warmingUp" class="no-key-note">
-        ⏳ <b>本地模型预热中</b>（已 {{ Math.round(api.warmupElapsed) }}s），加载完成后即可上传分析…
+        ○ <b>本地模型预热中</b>（已 {{ Math.round(api.warmupElapsed) }}s），加载完成后即可上传分析…
       </div>
       <!-- 云端 LLM 定城市且未配置 API Key：禁止发送图片 -->
       <div v-if="api.needsSetup && api.localCityEngine === 'llm'" class="no-key-note">
-        🚫 <b>云端 LLM 定城市需要 API Key</b>：请先到右上角「⚙️ 设置」填写你自己的 API Key，
+        △ <b>云端 LLM 定城市需要 API Key</b>：请先到右上角「⚙️ 设置」填写你自己的 API Key，
         或切换到「本地 CLIP-B/16」城市引擎（免费，无需 Key）。
       </div>
       <div v-if="error" class="error">{{ error }}</div>

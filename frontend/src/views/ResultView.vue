@@ -84,22 +84,30 @@ const balanceIssue = computed(() => task.value?.meta?.insufficient_balance === t
 
 const focusCandidate = ref(null)  // 地图要聚焦的候选对象（不依赖下标，杜绝错位）
 
-// 用户反馈
-const fbStars = ref(0)
-const fbCountry = ref('')
-const fbCity = ref('')
+// 用户反馈（好/不好 + 地图选点）
 const fbSubmitted = ref(false)
+const fbBad = ref(false)
+const fbPick = ref(null)
 
-async function submitFeedback() {
+async function submitFeedbackGood() {
   if (!task.value) return
-  const form = new FormData()
-  form.append('satisfaction', fbStars.value)
-  if (fbCountry.value) form.append('correct_country', fbCountry.value)
-  if (fbCity.value) form.append('correct_city', fbCity.value)
-  try {
-    await fetch(`/api/tasks/${task.value.task_id}/feedback`, { method: 'POST', body: form })
-    fbSubmitted.value = true
-  } catch { fbSubmitted.value = true }
+  await fetch(`/api/tasks/${task.value.task_id}/feedback`, {
+    method: 'POST', body: new URLSearchParams({ satisfaction: '5' })
+  })
+  fbSubmitted.value = true
+}
+
+async function submitFeedbackPick() {
+  if (!task.value || !fbPick.value) return
+  await fetch(`/api/tasks/${task.value.task_id}/feedback`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      satisfaction: '1',
+      correct_lat: String(fbPick.value.lat || ''),
+      correct_lon: String(fbPick.value.lon || '')
+    })
+  })
+  fbSubmitted.value = true
 }
 
 // 准确度短标签：去掉括号及内容，只留"城市级/国家级"等主标签
@@ -173,7 +181,7 @@ onUnmounted(() => {
           </span>
           <span class="badge">{{ MODE_LABEL[task.mode] || task.mode }}模式</span>
           <span class="badge" :class="{ exact: task.meta?.scope === 'world' }">
-            {{ task.meta?.scope === 'cn' ? '🇨🇳 中国模式' : task.meta?.scope === 'no-cn' ? '除中国大陆' : '全世界' }}
+            {{ task.meta?.scope === 'cn' ? '◆ 中国模式' : task.meta?.scope === 'no-cn' ? '除中国大陆' : '全世界' }}
           </span>
         </div>
         <div class="muted">
@@ -181,14 +189,14 @@ onUnmounted(() => {
           <template v-if="task.meta?.tokens">
             LLM 消耗 {{ (task.meta.tokens.prompt / 1000).toFixed(1) }}k 输入 + {{ (task.meta.tokens.completion / 1000).toFixed(1) }}k 输出（{{ task.meta.tokens.calls }} 次调用）·
           </template>
-          {{ task.message }}<template v-if="task.gps"> · 📍 {{ task.gps.lat.toFixed(5) }}, {{ task.gps.lon.toFixed(5) }}</template>
+          {{ task.message }}<template v-if="task.gps"> · ◆ {{ task.gps.lat.toFixed(5) }}, {{ task.gps.lon.toFixed(5) }}</template>
         </div>
         <button class="btn btn-ghost" @click="emit('back')">← 分析另一张</button>
         <div v-if="llmTimeout && !balanceIssue" class="timeout-note" style="margin-top: 10px">
           ⏱️ LLM 服务繁忙/超时，本次为降级结果（可稍后重传分析）。
         </div>
         <div v-if="balanceIssue" class="balance-note">
-          💳 <b>LLM 账号余额不足</b>：请到智谱开放平台（open.bigmodel.cn）充值，或在设置页更换自己的 API Key。
+          △ <b>LLM 账号余额不足</b>：请到智谱开放平台（open.bigmodel.cn）充值，或在设置页更换自己的 API Key。
           当前结果已降级为本地先验/检索定位。
         </div>
         <div class="export-row">
@@ -200,25 +208,21 @@ onUnmounted(() => {
 
       <!-- 用户反馈 -->
       <div v-if="!fbSubmitted" class="card feedback-card">
-        <h3>📝 评价本次结果</h3>
-        <div class="fb-stars">
-          <button v-for="s in 5" :key="s" class="fb-star" :class="{ active: fbStars >= s }"
-                  @click="fbStars = s">{{ s <= 2 ? '😞' : s === 3 ? '😐' : s === 4 ? '🙂' : '😄' }}</button>
+        <div class="fb-actions">
+          <button class="fb-btn fb-good" @click="submitFeedbackGood">✓ 正确</button>
+          <button class="fb-btn fb-bad" @click="fbSubmitted = true; fbBad = true">✗ 不对</button>
         </div>
-        <div v-if="fbStars <= 3" class="fb-correction">
-          <div class="muted" style="margin-bottom: 6px">正确地点是？</div>
-          <div class="fb-fields">
-            <input v-model="fbCountry" placeholder="国家（如 France）" class="fb-input" />
-            <input v-model="fbCity" placeholder="城市（可选）" class="fb-input" />
-          </div>
-        </div>
-        <button class="btn" style="margin-top: 10px" @click="submitFeedback">提交反馈</button>
       </div>
-      <div v-else class="card fb-thanks">✅ 感谢反馈，已记录！</div>
+      <div v-if="fbBad && !fbSubmitted" class="card fb-correction-card">
+        <div class="fb-correction-title">请点击地图上的正确位置</div>
+        <MapPanel :candidates="[]" :focus-candidate="fbPick" @map-click="fbPick = $event; fbSubmitted = true; submitFeedbackPick()" />
+      </div>
+      <div v-if="fbSubmitted && !fbBad" class="card fb-thanks">已记录 ✓</div>
+      <div v-if="fbSubmitted && fbBad" class="card fb-thanks">已记录，感谢纠正 ✓</div>
 
       <!-- EXIF GPS 参考信息（已移除"直接定位"：仅供对比，定位基于图像分析） -->
       <div v-if="task.gps" class="card">
-        <div class="exif-note">📷 {{ task.meta?.exif_note || `照片自带 EXIF GPS：${task.gps.lat.toFixed(5)}, ${task.gps.lon.toFixed(5)}` }}（仅参考，本次定位基于图像分析）</div>
+        <div class="exif-note">◎ {{ task.meta?.exif_note || `照片自带 EXIF GPS：${task.gps.lat.toFixed(5)}, ${task.gps.lon.toFixed(5)}` }}（仅参考，本次定位基于图像分析）</div>
       </div>
 
       <!-- LLM 路径 -->
@@ -236,7 +240,7 @@ onUnmounted(() => {
         <div class="card map-card">
           <MapPanel :candidates="task.candidates" :focus-candidate="focusCandidate" />
           <div v-if="hasCountryCentroid" class="country-note">
-            🧭 <b>国家级示意</b>：黄圈表示真实位置可能在此国家范围内，红点为该国首都城市（示意）。
+            ◇ <b>国家级示意</b>：黄圈表示真实位置可能在此国家范围内，红点为该国首都城市（示意）。
           </div>
         </div>
 
@@ -283,9 +287,9 @@ onUnmounted(() => {
 
         <!-- OCR 文字识别 + 搜索验证 + 百度识图 -->
         <div v-if="task.facts && task.facts.length" class="card enhance-card">
-          <h3>🔬 增强分析</h3>
+          <h3>■ 增强分析</h3>
           <div v-for="f in task.facts" :key="f.tool + f.query" class="enhance-row">
-            <span class="badge enhance-badge">{{ f.tool === 'ocr' ? '📝 OCR' : f.tool === 'tavily' ? '🔍 Tavily' : f.tool === 'baidu' ? '📷 百度' : f.tool }}</span>
+            <span class="badge enhance-badge">{{ f.tool === 'ocr' ? '① OCR' : f.tool === 'tavily' ? '🔍 Tavily' : f.tool === 'baidu' ? '◎ 百度' : f.tool }}</span>
             <div class="enhance-body">
               <div class="enhance-summary">{{ f.summary }}</div>
               <div v-if="f.ok" class="enhance-detail muted">✅ 有效信号，已参与加权</div>
@@ -294,18 +298,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- 判断理由 -->
-        <div v-if="task.candidates && task.candidates.length" class="card reason-card">
-          <h3>💡 判断理由</h3>
-          <div v-for="c in task.candidates.slice(0, 3)" :key="c.rank" class="reason-row">
-            <div class="reason-rank">#{{ c.rank }}</div>
-            <div class="reason-content">
-              <div class="reason-location"><b>{{ c.country_zh || c.country }}</b> {{ c.city_zh || c.city || '' }}</div>
-              <div class="reason-score">置信度: {{ (c.score * 100).toFixed(0) }}% · {{ c.accuracy_hint || '' }}</div>
-              <div v-for="(e, i) in (c.evidence || [])" :key="i" class="reason-evidence muted">· {{ e }}</div>
-            </div>
-          </div>
-        </div>
+
       </div>
     </div>
   </div>
@@ -356,7 +349,14 @@ onUnmounted(() => {
 .fb-correction { margin-top: 10px; }
 .fb-fields { display: flex; gap: 10px; }
 .fb-input { flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
-.fb-thanks { text-align: center; color: #065f46; font-size: 16px; padding: 20px; }
+.fb-actions { display: flex; gap: 12px; justify-content: center; padding: 10px 0; }
+.fb-btn { padding: 10px 24px; border: 2px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.15s; }
+.fb-btn:hover { border-color: #9ca3af; }
+.fb-good { color: #059669; } .fb-good:hover { background: #ecfdf5; border-color: #059669; }
+.fb-bad { color: #dc2626; } .fb-bad:hover { background: #fef2f2; border-color: #dc2626; }
+.fb-correction-card { text-align: center; }
+.fb-correction-title { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+.fb-thanks { text-align: center; color: #065f46; font-size: 15px; padding: 16px; }
 .exact-banner {
   background: #d1fae5; color: #065f46;
   padding: 10px 14px; border-radius: 8px; margin-bottom: 12px;

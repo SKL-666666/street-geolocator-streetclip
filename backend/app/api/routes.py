@@ -249,10 +249,9 @@ async def list_tasks(request: Request):
 
 @router.post("/tasks/{task_id}/feedback")
 async def submit_feedback(task_id: str, request: Request,
-                          satisfaction: int = Form(...),
-                          correct_country: str = Form(""),
-                          correct_city: str = Form(""),
-                          note: str = Form("")):
+                          satisfaction: str = Form(""),
+                          correct_lat: str = Form(""),
+                          correct_lon: str = Form("")):
     """用户反馈：满意度评分 + 可选正确标注"""
     store: TaskStore = _get_store(request)
     result: TaskResult | None = store.get(task_id)
@@ -266,11 +265,10 @@ async def submit_feedback(task_id: str, request: Request,
     fb = {
         "task_id": task_id,
         "filename": result.filename,
-        "satisfaction": satisfaction,  # 1-5 星
+        "satisfaction": int(satisfaction) if satisfaction.isdigit() else 0,  # 1-5 星
         "predicted": result.candidates[0].country if result.candidates else None,
-        "correct_country": correct_country,
-        "correct_city": correct_city,
-        "note": note,
+        "correct_lat": float(correct_lat) if correct_lat else None,
+        "correct_lon": float(correct_lon) if correct_lon else None,
         "scope": result.meta.get("scope"),
         "timestamp": time.time(),
     }
