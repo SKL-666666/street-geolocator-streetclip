@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import time
 import uuid
 from typing import Optional
@@ -20,7 +21,7 @@ from ..llm.base import BalanceError, ContentFilterError, LLMProvider, OverloadEr
 from ..llm.factory import create_provider
 from ..schemas import Candidate, SceneAnalysis, TaskResult, TaskStatus, ToolFact
 from ..storage import TaskStore
-from .exif import extract_captured, extract_gps
+from .exif import extract_captured, extract_gps, extract_camera
 from .scene import SceneAnalyzer, SceneTimeoutError
 from .suncheck import apply_sun_check
 from .tools_pass import candidates_from_geocode, run_fact_check, run_tools_pass
@@ -220,6 +221,11 @@ class Orchestrator:
                 except Exception:
                     pass
                 result.meta = {**result.meta, "exif_note": note}
+
+            # ①b EXIF 相机信息（辅助线索：品牌→市场份额→国家概率）
+            camera = extract_camera(image_bytes)
+            if camera:
+                result.meta = {**result.meta, "camera": camera}
 
             # ② LLM 线索提取（与 MixVPR 先验并行，省一次串行等待）
             # 提示词按 scope 分离（中国/全球），范围指令与少样本由 build_clue_prompt 组装
@@ -530,6 +536,46 @@ class Orchestrator:
                         image_bytes, candidates, result)
                 except Exception:
                     pass  # OCR/Tavily 失败不阻塞主流程
+
+            # ---- 植被/气候分类（始终运行，轻量）----
+            try:
+                from .climate import classify_climate
+                climate = classify_climate(image_bytes)
+                if climate and climate.get("priors"):
+                    result.facts.append(ToolFact(
+                        tool="climate", query=climate["climate"],
+                        summary=f"气候区: {climate['climate']}（置信度 {climate['confidence']:.1%}）",
+                        ok=True))
+                    for c, w in climate["priors"].items():
+                        if any(cand.country == c for cand in candidates):
+                            for cand in candidates:
+                                if cand.country == c:
+                                    cand.score = round(cand.score + w, 3)
+                                    cand.evidence.append(f"气候区匹配：{climate['climate']}")
+            except Exception:
+                pass
+
+            # ---- 车牌识别（始终运行，轻量）----
+            try:
+                from .plate import detect_plate_country
+                from rapidocr_onnxruntime import RapidOCR
+                ocr = RapidOCR()
+                results, _ = ocr(Image.open(io.BytesIO(image_bytes)))
+                if results:
+                    texts = [r[1] for r in results if len(r[1]) >= 2]
+                    plate = detect_plate_country(texts)
+                    if plate.get("detected"):
+                        result.facts.append(ToolFact(
+                            tool="plate", query=plate["code"],
+                            summary=f"车牌代码: {plate['code']}（{plate['country']}）",
+                            ok=True))
+                        # 车牌信号加权
+                        for cand in candidates:
+                            if cand.country == plate["country"]:
+                                cand.score = round(cand.score + 0.1, 3)
+                                cand.evidence.append(f"车牌代码 {plate['code']} → {plate['country']}")
+            except Exception:
+                pass
 
             top_name = candidates[0].city_zh if candidates else "无"
             result.scene = SceneAnalysis(

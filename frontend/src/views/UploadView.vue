@@ -17,7 +17,7 @@ function loadPrefs() {
 function savePrefs() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify({
     mode: mode.value, scope: scope.value,
-    enableOcr: enableOcr.value, enableBaidu: enableBaidu.value
+    enableOcr: enableOcr.value, enableBaidu: enableBaidu.value,
   })) } catch { /* 隐私模式忽略 */ }
 }
 const prefs = loadPrefs()
@@ -91,7 +91,6 @@ async function submit() {
     for (const f of files.value) {
       try {
         ids.push(await uploadImage(f, mode.value, scope.value,
-        enableOcr.value, enableBaidu.value))
       } catch (e) {
         error.value = `${f.name}: ${e.message}`
       }
@@ -150,6 +149,10 @@ async function submit() {
           <span>
             <b>📝 OCR 文字 + 搜索验证</b>
             <small>识别图中文字 → Tavily 搜索验证地名（每张 +3s，有文字时有效）</small>
+          </span>
+        </label>
+          <span>
+            <small>原图+翻转+裁剪三路推理取平均（每张推理时间×3，+3~5pp）</small>
           </span>
         </label>
         <label v-if="scope === 'cn'" class="ds-toggle" :class="{ on: enableBaidu }">

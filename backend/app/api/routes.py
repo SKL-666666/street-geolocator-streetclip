@@ -1,6 +1,7 @@
 """REST API：健康检查 / 上传分析 / 任务查询。"""
 from __future__ import annotations
 
+import time
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -198,7 +199,9 @@ async def setup_llm(request: Request,
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(request: Request, file: UploadFile = File(...),
                   mode: str = Form("local"), scope: str = Form("world"),
-                  enable_ocr: str = Form(""), enable_baidu: str = Form("")):
+                  enable_ocr: str = Form(""), enable_baidu: str = Form(""),
+                  ):
+
     orch: Orchestrator = _get_orchestrator(request)
 
     # 预热中：本地模型未就绪，拒绝上传（避免任务排队卡住）
@@ -224,7 +227,8 @@ async def analyze(request: Request, file: UploadFile = File(...),
     scope = scope if scope in ("world", "no-cn", "cn") else "world"
     task_id = orch.submit(data, file.filename or "upload.jpg", mode=mode, scope=scope,
                           enhance_ocr=enable_ocr == "1",
-                          enhance_baidu=enable_baidu == "1")
+                          enhance_baidu=enable_baidu == "1",
+                          )
     return AnalyzeResponse(task_id=task_id)
 
 
@@ -241,6 +245,38 @@ async def get_task(task_id: str, request: Request):
 async def list_tasks(request: Request):
     store: TaskStore = _get_store(request)
     return {"tasks": [t.model_dump(mode="json") for t in store.list_recent(50)]}
+
+
+@router.post("/tasks/{task_id}/feedback")
+async def submit_feedback(task_id: str, request: Request,
+                          satisfaction: int = Form(...),
+                          correct_country: str = Form(""),
+                          correct_city: str = Form(""),
+                          note: str = Form("")):
+    """用户反馈：满意度评分 + 可选正确标注"""
+    store: TaskStore = _get_store(request)
+    result: TaskResult | None = store.get(task_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"任务 {task_id} 不存在")
+
+    import json
+    from pathlib import Path
+    fb_dir = settings.data_dir / "feedback"
+    fb_dir.mkdir(exist_ok=True)
+    fb = {
+        "task_id": task_id,
+        "filename": result.filename,
+        "satisfaction": satisfaction,  # 1-5 星
+        "predicted": result.candidates[0].country if result.candidates else None,
+        "correct_country": correct_country,
+        "correct_city": correct_city,
+        "note": note,
+        "scope": result.meta.get("scope"),
+        "timestamp": time.time(),
+    }
+    fb_path = fb_dir / f"{task_id}.json"
+    fb_path.write_text(json.dumps(fb, ensure_ascii=False, indent=1), encoding="utf-8")
+    return {"ok": True, "message": "反馈已保存", "path": str(fb_path)}
 
 
 @router.post("/tasks/{task_id}/retry", response_model=AnalyzeResponse)

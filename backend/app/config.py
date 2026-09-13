@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     mapillary_token: str = ""       # 留空则跳过街景回查
     mapillary_radius_m: int = 60    # 候选点回查半径
 
-    # ---- OCR + 搜索增强 ----
+    # ---- 增强选项 ----
     tavily_api_key: str = ""        # Tavily 搜索 API Key（留空则 OCR 增强跳过 Tavily 搜索）
 
     # ---- 增强方案开关 ----

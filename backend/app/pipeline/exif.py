@@ -106,3 +106,33 @@ def extract_captured(data: bytes) -> Optional[str]:
     except Exception:
         pass
     return None
+
+
+def extract_camera(data: bytes) -> dict:
+    """提取相机型号、品牌、软件等 EXIF 元数据。"""
+    meta = {}
+    try:
+        import exifread
+        tags = exifread.process_file(io.BytesIO(data), details=False)
+        for key, field in [("Image Make", "make"), ("Image Model", "model"),
+                           ("Image Software", "software"), ("EXIF LensModel", "lens")]:
+            if key in tags:
+                meta[field] = str(tags[key]).strip()
+    except Exception:
+        pass
+    # PIL 兜底
+    if not meta.get("make") and not meta.get("model"):
+        try:
+            from PIL import Image, ExifTags
+            img = Image.open(io.BytesIO(data))
+            exif = img.getexif()
+            if exif:
+                for tag_id, value in exif.items():
+                    tag = ExifTags.TAGS.get(tag_id, tag_id)
+                    if tag == "Make":
+                        meta["make"] = str(value).strip()
+                    elif tag == "Model":
+                        meta["model"] = str(value).strip()
+        except Exception:
+            pass
+    return meta

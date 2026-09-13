@@ -84,6 +84,24 @@ const balanceIssue = computed(() => task.value?.meta?.insufficient_balance === t
 
 const focusCandidate = ref(null)  // 地图要聚焦的候选对象（不依赖下标，杜绝错位）
 
+// 用户反馈
+const fbStars = ref(0)
+const fbCountry = ref('')
+const fbCity = ref('')
+const fbSubmitted = ref(false)
+
+async function submitFeedback() {
+  if (!task.value) return
+  const form = new FormData()
+  form.append('satisfaction', fbStars.value)
+  if (fbCountry.value) form.append('correct_country', fbCountry.value)
+  if (fbCity.value) form.append('correct_city', fbCity.value)
+  try {
+    await fetch(`/api/tasks/${task.value.task_id}/feedback`, { method: 'POST', body: form })
+    fbSubmitted.value = true
+  } catch { fbSubmitted.value = true }
+}
+
 // 准确度短标签：去掉括号及内容，只留"城市级/国家级"等主标签
 function shortHint(c) {
   const h = c.accuracy_hint || ''
@@ -179,6 +197,24 @@ onUnmounted(() => {
           <a class="btn btn-sm" :href="`/api/tasks/${task.task_id}/export?format=csv`" download>导出 CSV</a>
         </div>
       </div>
+
+      <!-- 用户反馈 -->
+      <div v-if="!fbSubmitted" class="card feedback-card">
+        <h3>📝 评价本次结果</h3>
+        <div class="fb-stars">
+          <button v-for="s in 5" :key="s" class="fb-star" :class="{ active: fbStars >= s }"
+                  @click="fbStars = s">{{ s <= 2 ? '😞' : s === 3 ? '😐' : s === 4 ? '🙂' : '😄' }}</button>
+        </div>
+        <div v-if="fbStars <= 3" class="fb-correction">
+          <div class="muted" style="margin-bottom: 6px">正确地点是？</div>
+          <div class="fb-fields">
+            <input v-model="fbCountry" placeholder="国家（如 France）" class="fb-input" />
+            <input v-model="fbCity" placeholder="城市（可选）" class="fb-input" />
+          </div>
+        </div>
+        <button class="btn" style="margin-top: 10px" @click="submitFeedback">提交反馈</button>
+      </div>
+      <div v-else class="card fb-thanks">✅ 感谢反馈，已记录！</div>
 
       <!-- EXIF GPS 参考信息（已移除"直接定位"：仅供对比，定位基于图像分析） -->
       <div v-if="task.gps" class="card">
@@ -313,6 +349,14 @@ onUnmounted(() => {
 .reason-location { font-size: 14px; margin-bottom: 2px; }
 .reason-score { font-size: 12px; color: #6b7280; }
 .reason-evidence { font-size: 12px; color: #4b5563; margin-top: 2px; line-height: 1.4; }
+.feedback-card h3 { margin-bottom: 10px; }
+.fb-stars { display: flex; gap: 8px; }
+.fb-star { font-size: 28px; background: none; border: none; cursor: pointer; opacity: 0.4; transition: opacity 0.15s; padding: 2px; }
+.fb-star.active { opacity: 1; transform: scale(1.1); }
+.fb-correction { margin-top: 10px; }
+.fb-fields { display: flex; gap: 10px; }
+.fb-input { flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
+.fb-thanks { text-align: center; color: #065f46; font-size: 16px; padding: 20px; }
 .exact-banner {
   background: #d1fae5; color: #065f46;
   padding: 10px 14px; border-radius: 8px; margin-bottom: 12px;
