@@ -8,7 +8,9 @@ const props = defineProps({
   candidates: { type: Array, default: () => [] },
   center: { type: Array, default: null }, // [lon, lat]
   focusCandidate: { type: Object, default: null }, // 需要飞到的候选对象（null 不飞）
+  clickable: { type: Boolean, default: false }, // 是否允许点击选点
 })
+const emit = defineEmits(['map-click'])
 
 const container = ref(null)
 let map = null
@@ -239,7 +241,10 @@ onMounted(() => {
     transformRequest,
   })
   map.addControl(new maplibregl.NavigationControl(), 'top-right')
-  map.on('load', renderMarkers)
+    map.on('load', renderMarkers)
+    map.on('click', (e) => {
+      if (props.clickable) emit('map-click', { lat: e.lngLat.lat, lon: e.lngLat.lng })
+    })
   // Esri 瓦片加载失败累计 → 自动降级腾讯（快速稳定双保险）
   map.on('error', (e) => {
     if (e?.error?.message?.includes('Tile') || e?.tile) {

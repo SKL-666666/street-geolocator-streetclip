@@ -306,7 +306,7 @@ onUnmounted(() => {
       </div>
       <div v-if="fbBad" class="fb-map-pick">
         <p style="font-size:13px;color:#6b7280;margin:6px 0">点击地图上的正确位置</p>
-        <MapPanel :candidates="[]" :focus-candidate="fbPick" @map-click="onMapPick" />
+        <MapPanel :candidates="[]" :focus-candidate="fbPick" :clickable="true" @map-click="onMapPick" />
         <button class="fb-btn fb-submit" @click="submitFeedbackPick" :disabled="!fbPick">提交纠正</button>
       </div>
     </div>
