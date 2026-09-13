@@ -151,8 +151,7 @@ class Orchestrator:
     # ---------- 对外接口 ----------
 
     def submit(self, image_bytes: bytes, filename: str, mode: str = "local",
-               scope: str = "world", enhance_ocr: bool = False,
-               enhance_baidu: bool = False) -> str:
+               scope: str = "world", enhance_ocr: bool = False) -> str:
         mode = (mode or settings.analyze_mode).lower()
         scope = scope if scope in ("world", "no-cn", "cn") else "world"
         # 缓存机制已移除：每次上传都重新分析（保证结果新鲜）
@@ -554,19 +553,19 @@ class Orchestrator:
 
 # ---- 植被/气候分类（始终运行，轻量）----
             try:
-                from .climate import classify_climate
-                climate = classify_climate(image_bytes)
+                from .climate import classify_all
+                climate_data = classify_all(image_bytes)
                 if climate and climate.get("priors"):
                     result.facts.append(ToolFact(
                         tool="climate", query=climate["climate"],
-                        summary=f"气候区: {climate['climate']}（置信度 {climate['confidence']:.1%}）",
+                        summary=f"气候区: {' + '.join(climate_data.get('summary',[]))}（置信度 {1.0:.1%}）",
                         ok=True))
                     for c, w in climate["priors"].items():
                         if any(cand.country == c for cand in candidates):
                             for cand in candidates:
                                 if cand.country == c:
                                     cand.score = round(cand.score + w, 3)
-                                    cand.evidence.append(f"气候区匹配：{climate['climate']}")
+                                    cand.evidence.append(f"气候区匹配：{' + '.join(climate_data.get('summary',[]))}")
             except Exception:
                 pass
 
@@ -608,6 +607,36 @@ class Orchestrator:
             result.updated_at = result.updated_at.now()
             self.store.save(result)
             self._tasks.pop(task_id, None)
+
+
+
+def _detect_script(text: str) -> str | None:
+    """Unicode 字符集 → 语系名称。"""
+    scripts = {"CYRILLIC_UA": "乌克兰语", "CYRILLIC_RU": "俄语", "LATIN_CS": "中欧语",
+               "LATIN_PL": "波兰语", "LATIN_TR": "土耳其语", "LATIN_BASIC": "基础拉丁"}
+    cyr_ua = set("ЇЄҐїєґ")
+    cyr_ru = set("ЪЫЁъыё")
+    cyr_be = set("Ўў")
+    cs = set("ŘĚŮŮČčěů")
+    pl = set("ŁĄĘŚŻŹąęśżź")
+    hu = set("ŐŐűű")
+    for c in text:
+        if c in cyr_ua: return "乌克兰语"
+        if c in cyr_ru or c in cyr_be: return "俄语/白俄"
+        if c in cs: return "捷克语/斯洛伐克"
+        if c in pl: return "波兰语"
+        if c in hu: return "匈牙利语"
+    if re.search(r'[A-Z][a-z]+', text): return "拉丁语系"
+    return None
+
+
+def _script_matches_country(script: str | None, country: str) -> bool:
+    if not script: return False
+    MAP = {"乌克兰语": ["Ukraine"], "俄语/白俄": ["Russia", "Belarus"],
+           "捷克语/斯洛伐克": ["Czechia", "Slovakia"], "波兰语": ["Poland"],
+           "匈牙利语": ["Hungary"]}
+    return country in MAP.get(script, [])
+
 
     @staticmethod
     def _retrieval_pass(image_bytes: bytes, candidates: list[Candidate]) -> list[Candidate]:

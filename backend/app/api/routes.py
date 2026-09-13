@@ -199,7 +199,7 @@ async def setup_llm(request: Request,
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(request: Request, file: UploadFile = File(...),
                   mode: str = Form("local"), scope: str = Form("world"),
-                  enable_ocr: str = Form(""), enable_baidu: str = Form(""),
+                  enable_ocr: str = Form(""),
                   ):
 
     orch: Orchestrator = _get_orchestrator(request)
@@ -227,7 +227,6 @@ async def analyze(request: Request, file: UploadFile = File(...),
     scope = scope if scope in ("world", "no-cn", "cn") else "world"
     task_id = orch.submit(data, file.filename or "upload.jpg", mode=mode, scope=scope,
                           enhance_ocr=enable_ocr == "1",
-                          enhance_baidu=enable_baidu == "1",
                           )
     return AnalyzeResponse(task_id=task_id)
 
