@@ -15,15 +15,13 @@ import time
 import uuid
 from typing import Optional
 
-from PIL import Image
-
 from ..config import get_analyze_mode, settings
 from ..geokb.engine import cross_filter, merge_into_scene
 from ..llm.base import BalanceError, ContentFilterError, LLMProvider, OverloadError
 from ..llm.factory import create_provider
 from ..schemas import Candidate, SceneAnalysis, TaskResult, TaskStatus, ToolFact
 from ..storage import TaskStore
-from .exif import extract_captured, extract_gps, extract_camera
+from .exif import extract_captured, extract_gps
 from .scene import SceneAnalyzer, SceneTimeoutError
 from .suncheck import apply_sun_check
 from .tools_pass import candidates_from_geocode, run_fact_check, run_tools_pass
@@ -153,15 +151,14 @@ class Orchestrator:
     # ---------- 对外接口 ----------
 
     def submit(self, image_bytes: bytes, filename: str, mode: str = "local",
-               scope: str = "world", enhance_ocr: bool = False) -> str:
+               scope: str = "world") -> str:
         mode = (mode or settings.analyze_mode).lower()
         scope = scope if scope in ("world", "no-cn", "cn") else "world"
         # 缓存机制已移除：每次上传都重新分析（保证结果新鲜）
         task_id = uuid.uuid4().hex[:12]
         result = TaskResult(task_id=task_id, filename=filename, stage="queued",
                             status=TaskStatus.PENDING, mode=mode,
-                            meta={"scope": scope,
-                                  "enhance_ocr": enhance_ocr})
+                            meta={"scope": scope})
         # 保存原图（供失败/降级后一键重试；保存失败不阻塞分析）
         try:
             from pathlib import Path
@@ -221,11 +218,6 @@ class Orchestrator:
                 except Exception:
                     pass
                 result.meta = {**result.meta, "exif_note": note}
-
-            # ①b EXIF 相机信息（辅助线索：品牌→市场份额→国家概率）
-            camera = extract_camera(image_bytes)
-            if camera:
-                result.meta = {**result.meta, "camera": camera}
 
             # ② LLM 线索提取（与 MixVPR 先验并行，省一次串行等待）
             # 提示词按 scope 分离（中国/全球），范围指令与少样本由 build_clue_prompt 组装
@@ -454,13 +446,6 @@ class Orchestrator:
                 if not candidates:
                     candidates = _fallback_candidate("cn")
                 result.candidates = candidates
-                # OCR + Tavily 增强（cn 模式）
-                if (result.meta or {}).get("enhance_ocr") and candidates:
-                    try:
-                        result.candidates = self._ocr_tavily_enhance(
-                            image_bytes, result.candidates, result)
-                    except Exception:
-                        pass
                 result.confidence_level = "city" if candidates[0].source == "local" else "none"
                 result.scene = SceneAnalysis(
                     is_street_view=True, scene_type="street",
@@ -478,6 +463,18 @@ class Orchestrator:
             self._update(result, progress=40, stage="scene", message="本地模型推理中")
             # 第一级：本地 StreetCLIP 判国家 Top3（template 等权平均）
             top = await asyncio.to_thread(classify_countries, image_bytes, 3)
+            # no-cn 模式：排除中国大陆候选，补充后续排名
+            if scope == "no-cn":
+                top = [t for t in top if t["label"] != "China"]
+                if len(top) < 3:
+                    extra = await asyncio.to_thread(classify_countries, image_bytes, 10)
+                    seen = {t["label"] for t in top}
+                    for t in extra:
+                        if t["label"] != "China" and t["label"] not in seen:
+                            top.append(t)
+                            seen.add(t["label"])
+                        if len(top) >= 3:
+                            break
             # Top1/Top2 分差极小 → 标注"候选接近"（东欧互混等模糊场景更诚实）
             close = len(top) >= 2 and top[0]["prob"] - top[1]["prob"] < 0.02
             # 第二级引擎（config 切换）：
@@ -528,16 +525,6 @@ class Orchestrator:
             self._update(result, progress=70, stage="scene", message="生成候选位置")
             result.candidates = candidates
 
-            # ---- OCR + Tavily 增强（用户勾选时触发）----
-            meta = result.meta or {}
-            if meta.get("enhance_ocr") and candidates:
-                try:
-                    result.candidates = self._ocr_tavily_enhance(
-                        image_bytes, candidates, result)
-                except Exception:
-                    pass  # OCR/Tavily 失败不阻塞主流程
-
-            
             # ---- 用户反馈先验校正（从历史反馈中学习）----
             try:
                 from .feedback_analysis import build_prior_correction, load_feedback
@@ -549,47 +536,6 @@ class Orchestrator:
                         if cand.country in corrections:
                             cand.score = round(cand.score * corrections[cand.country], 3)
                             cand.evidence.append(f"反馈校正: {cand.country} ×{corrections[cand.country]:.2f}")
-            except Exception:
-                pass
-
-# ---- 植被/气候分类（始终运行，轻量）----
-            try:
-                from .climate import classify_all
-                climate_data = classify_all(image_bytes)
-                if climate_data and climate_data.get("priors"):
-                    summary_txt = " + ".join(climate_data.get("summary", []))
-                    result.facts.append(ToolFact(
-                        tool="climate", query=summary_txt,
-                        summary=f"气候特征: {summary_txt}",
-                        ok=True))
-                    for c, w in climate_data["priors"].items():
-                        if any(cand.country == c for cand in candidates):
-                            for cand in candidates:
-                                if cand.country == c:
-                                    cand.score = round(cand.score + w, 3)
-                                    cand.evidence.append(f"气候区匹配：{' + '.join(climate_data.get('summary',[]))}")
-            except Exception:
-                pass
-
-            # ---- 车牌识别（始终运行，轻量）----
-            try:
-                from .plate import detect_plate_country
-                from rapidocr_onnxruntime import RapidOCR
-                ocr = RapidOCR()
-                results, _ = ocr(Image.open(io.BytesIO(image_bytes)))
-                if results:
-                    texts = [r[1] for r in results if len(r[1]) >= 2]
-                    plate = detect_plate_country(texts)
-                    if plate.get("detected"):
-                        result.facts.append(ToolFact(
-                            tool="plate", query=plate["code"],
-                            summary=f"车牌代码: {plate['code']}（{plate['country']}）",
-                            ok=True))
-                        # 车牌信号加权
-                        for cand in candidates:
-                            if cand.country == plate["country"]:
-                                cand.score = round(cand.score + 0.1, 3)
-                                cand.evidence.append(f"车牌代码 {plate['code']} → {plate['country']}")
             except Exception:
                 pass
 
@@ -634,80 +580,6 @@ class Orchestrator:
                 evidence=[f"街景索引命中 {zh}（相似度 {h['score']:.2f}）"],
             ))
         return out
-
-    @staticmethod
-    def _ocr_tavily_enhance(image_bytes, candidates, result):
-        """OCR + Tavily 增强：提取文字 → 搜索验证 → 加权融合到候选分数。"""
-        import re, io
-        try:
-            from rapidocr_onnxruntime import RapidOCR
-        except ImportError:
-            return candidates
-        ocr = RapidOCR()
-        img = Image.open(io.BytesIO(image_bytes))
-        ocr_results, _ = ocr(img)
-        if not ocr_results:
-            result.facts.append(ToolFact(tool="ocr", query="", summary="无文字", ok=False))
-            return candidates
-        # 从 OCR 结果提取文字
-        texts = [r[1] for r in ocr_results if len(r[1]) >= 2]
-        if not texts:
-            return candidates
-        # 关键词：非数字、长度 >= 3
-        keywords = [t for t in texts if len(t) >= 3 and not t.isdigit()][:2]
-        result.facts.append(ToolFact(tool="ocr", query=str(keywords),
-            summary=f"识别文字: {', '.join(texts[:5])}", ok=True))
-        if not keywords:
-            return candidates
-        # Tavily 搜索
-        import httpx as _httpx
-        TAVILY_KEY = getattr(settings, "tavily_api_key", "") or "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"
-        if not TAVILY_KEY:
-            return candidates  # 未配置 Tavily Key，跳过
-        try:
-            with _httpx.Client(timeout=12) as c:
-                r = c.post("https://api.tavily.com/search", json={
-                    "query": " ".join(keywords), "search_depth": "basic",
-                    "include_answer": True, "max_results": 2
-                }, headers={"Authorization": f"Bearer {TAVILY_KEY}"})
-            if r.status_code != 200:
-                return candidates
-            answer = r.json().get("answer", "")
-            # 从 answer 第一句话提取国家
-            CN_MAP = {"法国": "France", "意大利": "Italy", "奥地利": "Austria",
-                      "德国": "Germany", "英国": "United Kingdom", "捷克": "Czechia",
-                      "匈牙利": "Hungary", "波兰": "Poland", "乌克兰": "Ukraine",
-                      "中国": "China", "蒙古": "Mongolia", "日本": "Japan",
-                      "巴西": "Brazil", "玻利维亚": "Bolivia", "智利": "Chile",
-                      "阿根廷": "Argentina", "秘鲁": "Peru", "美国": "United States",
-                      "加拿大": "Canada", "俄罗斯": "Russia", "澳大利亚": "Australia",
-                      "南非": "South Africa", "肯尼亚": "Kenya", "印度": "India"}
-            first = re.split(r'[.。]', answer)[0]
-            tav_country = None
-            for cn, en in CN_MAP.items():
-                if cn in first:
-                    tav_country = en
-                    break
-            if not tav_country:
-                # 英文匹配
-                from ..geokb.countries import COUNTRY_ALIASES
-                for c in COUNTRY_ALIASES.values():
-                    if c.lower() in first.lower():
-                        tav_country = c
-                        break
-            result.facts.append(ToolFact(tool="tavily", query=" ".join(keywords),
-                summary=f"Tavily: {answer[:80]}... → {tav_country}",
-                ok=tav_country is not None))
-            if tav_country:
-                # 在候选中找对应国家并加权
-                for c in candidates:
-                    if c.country == tav_country:
-                        c.score = round(c.score * 1.15 + 0.03, 3)
-                        c.evidence.append(f"OCR+Tavily 验证指向 {tav_country}")
-        except Exception:
-            pass
-        return candidates
-        return any("✅" in ev for c in result.candidates for ev in c.evidence)
 
     async def _streetview_pass(self, result: TaskResult, scene: SceneAnalysis,
                                radii: tuple[int, ...] | None = None) -> None:

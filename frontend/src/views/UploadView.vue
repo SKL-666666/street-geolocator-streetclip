@@ -17,13 +17,11 @@ function loadPrefs() {
 function savePrefs() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify({
     mode: mode.value, scope: scope.value,
-    enableOcr: enableOcr.value,
   })) } catch { /* 隐私模式忽略 */ }
 }
 const prefs = loadPrefs()
 const mode = ref('local')  // 仅本地模式（本地判国家 + 城市引擎）
 const scope = ref(['world', 'no-cn', 'cn'].includes(prefs.scope) ? prefs.scope : 'world')
-const enableOcr = ref(prefs.enableOcr ?? false)
 const progress = ref({ done: 0, total: 0 })
 
 const canSubmit = computed(() => files.value.length && !uploading.value && !api.warmingUp &&
@@ -89,7 +87,7 @@ async function submit() {
   try {
     for (const f of files.value) {
       try {
-        ids.push(await uploadImage(f, mode.value, scope.value, enableOcr.value))
+        ids.push(await uploadImage(f, mode.value, scope.value))
       } catch (e) {
         error.value = `${f.name}: ${e.message}`
       }
@@ -139,18 +137,6 @@ async function submit() {
       </div>
       <div v-if="scope === 'cn'" class="scope-note china-note">
         中国模式：直接用城市模型推断中国城市（更快、更准），跳过国家级步骤。
-      </div>
-
-      <!-- 增强选项（用户勾选） -->
-      <div class="enhance-toggles">
-        <label class="ds-toggle" :class="{ on: enableOcr }">
-          <input type="checkbox" v-model="enableOcr" @change="savePrefs()" />
-          <span>
-            <b>📝 OCR 文字 + 搜索验证</b>
-            <small>识别图中文字 → Tavily 搜索验证地名（每张 +3s，有文字时有效）</small>
-          </span>
-        </label>
-        
       </div>
 
       <!-- 本地模式城市引擎 -->
