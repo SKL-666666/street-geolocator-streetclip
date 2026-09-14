@@ -476,7 +476,7 @@ class Orchestrator:
             from ..geokb.countries import COUNTRY_ALIASES, country_zh
 
             self._update(result, progress=40, stage="scene", message="本地模型推理中")
-            # 第一级：本地 StreetCLIP 判国家 Top3
+            # 第一级：本地 StreetCLIP 判国家 Top3（template 等权平均）
             top = await asyncio.to_thread(classify_countries, image_bytes, 3)
             # Top1/Top2 分差极小 → 标注"候选接近"（东欧互混等模糊场景更诚实）
             close = len(top) >= 2 and top[0]["prob"] - top[1]["prob"] < 0.02
