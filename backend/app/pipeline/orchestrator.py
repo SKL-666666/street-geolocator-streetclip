@@ -455,9 +455,9 @@ class Orchestrator:
                              status=TaskStatus.SUCCEEDED)
                 return
             from ..geokb.local_engine import (
-                encode_streetclip, classify_countries_feat,
+                encode_streetclip, classify_countries_feat, country_scores_feat,
                 classify_cities_streetclip, classify_cities_llm_multi,
-                model_name)
+                COUNTRIES, model_name)
             from ..geokb.citylib import city_coords, city_zh
             from ..geokb.countries import COUNTRY_ALIASES, country_zh
 
@@ -465,7 +465,42 @@ class Orchestrator:
             # 图像特征只编码一次：国家打分 + 城市打分共用（A/B 实测省一次编码，快 ~20%）
             feat = await asyncio.to_thread(encode_streetclip, image_bytes)
             # 第一级：本地 StreetCLIP 判国家 Top3（template 等权平均）
-            top = await asyncio.to_thread(classify_countries_feat, feat, 3)
+            # Step4 融合：DINOv2 参考图库检索证据加权（2026-10 实测 56.2%→61.8%，
+            # α=0.1~0.15 平台）。图库/模型缺失时静默降级为纯 StreetCLIP。
+            top = None
+            if settings.retrieval_alpha > 0:
+                try:
+                    from ..retrieval.dino_geo import retrieve_countries
+                    ret = await asyncio.to_thread(retrieve_countries, image_bytes, 5)
+                except Exception:  # noqa: BLE001
+                    ret = None
+                if ret:
+                    full = await asyncio.to_thread(country_scores_feat, feat)
+                    norm_map = {}
+                    for c in COUNTRIES:
+                        n = c.strip().lower()
+                        n = {"czech republic": "czechia"}.get(n, n)
+                        norm_map[n] = c
+
+                    def _n(s: str) -> str:
+                        n = s.strip().lower()
+                        return {"czech republic": "czechia",
+                                "uk": "united kingdom", "usa": "united states",
+                                "russian federation": "russia"}.get(n, n)
+                    sc_max = full[0][1] or 1.0
+                    fused = {c: s / sc_max for c, s in full}
+                    r_max = max(ret.values()) or 1.0
+                    for raw_c, v in ret.items():
+                        c = norm_map.get(_n(raw_c))
+                        if c:
+                            fused[c] = fused.get(c, 0.0) + \
+                                settings.retrieval_alpha * v / r_max
+                    ranked = sorted(fused.items(), key=lambda x: -x[1])
+                    top = [{"label": c, "prob": round(s, 4), "index": i}
+                           for i, (c, s) in enumerate(ranked[:3])]
+                    result.meta = {**result.meta, "retrieval_fused": True}
+            if top is None:
+                top = await asyncio.to_thread(classify_countries_feat, feat, 3)
             # no-cn 模式：排除中国大陆候选，补充后续排名
             if scope == "no-cn":
                 top = [t for t in top if t["label"] != "China"]

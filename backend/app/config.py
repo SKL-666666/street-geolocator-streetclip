@@ -75,8 +75,13 @@ class Settings(BaseSettings):
     # 默认分析模式（可被 API 的 mode 参数覆盖）：仅 local（本地+云端结合）
     analyze_mode: str = "local"
 
-    # local 模式第二级引擎：clip（本地 CLIP-B/16，免费）/ llm（云端 LLM 猜城市名，要 token）
+    # local 模式第二级引擎：clip（本地 StreetCLIP，免费；2026-10 由 CLIP-B/16 升级）/
+    #                      llm（云端 LLM 猜城市名，要 token）
     local_city_engine: str = "clip"
+
+    # Step4：DINOv2 参考图库检索融合权重 α（score = sc + α×检索归一分；
+    # 2026-10 实测 α=0.1~0.15 平台 56.2%→61.8%；0 = 关闭融合）
+    retrieval_alpha: float = 0.125
 
     # KartaView 街景回查：已关闭（实测不影响定位正确率，仅展示缩略图，且荒野图无图可拉）
     streetview_enabled: bool = False

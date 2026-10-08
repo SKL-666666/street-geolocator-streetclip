@@ -92,8 +92,8 @@ def encode_streetclip(image_bytes: bytes):
         return _feat_tensor(model.get_image_features(**inputs))
 
 
-def classify_countries_feat(feat, k: int = 5) -> list[dict]:
-    """已编码特征 → 国家 TopK（与 classify_countries 同结果，免重复编码）。"""
+def country_scores_feat(feat) -> list[tuple[str, float]]:
+    """已编码特征 → 全量国家分数 [(label, score)] 降序（融合/复核用）。"""
     _, _, text_feats = _load_engine()
     sims = (feat @ text_feats.T).squeeze(0)
     country_scores = []
@@ -101,7 +101,13 @@ def classify_countries_feat(feat, k: int = 5) -> list[dict]:
         s = sims[i * len(TEMPLATES): (i + 1) * len(TEMPLATES)].mean().item()
         country_scores.append((c, s))
     country_scores.sort(key=lambda x: -x[1])
-    return [{"label": c, "prob": round(s, 4), "index": i} for i, (c, s) in enumerate(country_scores[:k])]
+    return country_scores
+
+
+def classify_countries_feat(feat, k: int = 5) -> list[dict]:
+    """已编码特征 → 国家 TopK（与 classify_countries 同结果，免重复编码）。"""
+    return [{"label": c, "prob": round(s, 4), "index": i}
+            for i, (c, s) in enumerate(country_scores_feat(feat)[:k])]
 
 
 def classify_countries(image_bytes: bytes, k: int = 5) -> list[dict]:
