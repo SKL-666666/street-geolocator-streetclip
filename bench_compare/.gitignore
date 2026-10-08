@@ -1,0 +1,7 @@
+# 图片与权重不入库(体积大)
+bench_final/
+bench100/
+thumbs_backup/
+weights/
+*.jpg
+__pycache__/
