@@ -455,19 +455,22 @@ class Orchestrator:
                              status=TaskStatus.SUCCEEDED)
                 return
             from ..geokb.local_engine import (
-                classify_countries, classify_cities, classify_cities_llm_multi,
-                model_name, _encode_image)
+                encode_streetclip, classify_countries_feat,
+                classify_cities_streetclip, classify_cities_llm_multi,
+                model_name)
             from ..geokb.citylib import city_coords, city_zh
             from ..geokb.countries import COUNTRY_ALIASES, country_zh
 
             self._update(result, progress=40, stage="scene", message="本地模型推理中")
+            # 图像特征只编码一次：国家打分 + 城市打分共用（A/B 实测省一次编码，快 ~20%）
+            feat = await asyncio.to_thread(encode_streetclip, image_bytes)
             # 第一级：本地 StreetCLIP 判国家 Top3（template 等权平均）
-            top = await asyncio.to_thread(classify_countries, image_bytes, 3)
+            top = await asyncio.to_thread(classify_countries_feat, feat, 3)
             # no-cn 模式：排除中国大陆候选，补充后续排名
             if scope == "no-cn":
                 top = [t for t in top if t["label"] != "China"]
                 if len(top) < 3:
-                    extra = await asyncio.to_thread(classify_countries, image_bytes, 10)
+                    extra = await asyncio.to_thread(classify_countries_feat, feat, 10)
                     seen = {t["label"] for t in top}
                     for t in extra:
                         if t["label"] != "China" and t["label"] not in seen:
@@ -475,12 +478,14 @@ class Orchestrator:
                             seen.add(t["label"])
                         if len(top) >= 3:
                             break
-            # Top1/Top2 分差极小 → 标注"候选接近"（东欧互混等模糊场景更诚实）
-            close = len(top) >= 2 and top[0]["prob"] - top[1]["prob"] < 0.02
+            # Top1/Top2 分差 → 置信度标注（0.04 阈值与 2026-10 A/B 评测一致；
+            # 换prompt复核实测无效已废弃，此标注仅供 UI 提示"候选接近"）
+            close = len(top) >= 2 and top[0]["prob"] - top[1]["prob"] < 0.04
             # 第二级引擎（config 切换）：
             #   llm（推荐）——Top3 国家 + 原图发给云端 LLM，一次定 3 城市（未必是首都），
             #     套用纯云端坐标逻辑落点（城市表优先 → LLM 估算坐标校正 → 兜底）；
-            #   clip（免费）——本地 CLIP-B/16 只对 TOP1 猜城市，TOP2/3 用首都示意。
+            #   clip（免费）——StreetCLIP 只对 TOP1 猜城市，TOP2/3 用首都示意
+            #     （2026-10 A/B：32张4城端到端 68.8% vs CLIP-B/16 43.8%）。
             city_engine = settings.local_city_engine
             candidates: list[Candidate] = []
             if city_engine == "llm" and top:
@@ -496,13 +501,12 @@ class Orchestrator:
                         # LLM 说不出该国城市 → 首都示意兜底
                         self._append_capital_candidate(candidates, rank, t, country)
             elif top:
-                # 本地 CLIP-B/16：只对 TOP1 猜城市，TOP2/3 首都
+                # 本地免费：StreetCLIP 对 TOP1 猜城市（复用国家阶段特征），TOP2/3 首都
                 t1 = top[0]
                 hits: list[dict] = []
                 try:
-                    img_feat = await asyncio.to_thread(_encode_image, image_bytes)
                     hits = await asyncio.to_thread(
-                        classify_cities, image_bytes, t1["label"], 1, None, img_feat)
+                        classify_cities_streetclip, feat, t1["label"], 1)
                 except Exception:  # noqa: BLE001
                     hits = []
                 for rank, t in enumerate(top, 1):

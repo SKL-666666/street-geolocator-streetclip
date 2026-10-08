@@ -83,20 +83,30 @@ def _load_engine():
         return _engine
 
 
-def classify_countries(image_bytes: bytes, k: int = 5) -> list[dict]:
-    """图片 → 国家 TopK：[{"label": 国家英文名, "prob": float, "index": int}]"""
-    model, proc, text_feats = _load_engine()
+def encode_streetclip(image_bytes: bytes):
+    """图片 → StreetCLIP 归一化图像特征（国家/城市共用，只编码一次）。"""
+    model, proc, _ = _load_engine()
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     inputs = proc(images=img, return_tensors="pt")
     with torch.no_grad():
-        img_feat = _feat_tensor(model.get_image_features(**inputs))
-        sims = (img_feat @ text_feats.T).squeeze(0)
+        return _feat_tensor(model.get_image_features(**inputs))
+
+
+def classify_countries_feat(feat, k: int = 5) -> list[dict]:
+    """已编码特征 → 国家 TopK（与 classify_countries 同结果，免重复编码）。"""
+    _, _, text_feats = _load_engine()
+    sims = (feat @ text_feats.T).squeeze(0)
     country_scores = []
     for i, c in enumerate(COUNTRIES):
         s = sims[i * len(TEMPLATES): (i + 1) * len(TEMPLATES)].mean().item()
         country_scores.append((c, s))
     country_scores.sort(key=lambda x: -x[1])
     return [{"label": c, "prob": round(s, 4), "index": i} for i, (c, s) in enumerate(country_scores[:k])]
+
+
+def classify_countries(image_bytes: bytes, k: int = 5) -> list[dict]:
+    """图片 → 国家 TopK：[{"label": 国家英文名, "prob": float, "index": int}]"""
+    return classify_countries_feat(encode_streetclip(image_bytes), k)
 
 
 def model_name() -> str:
@@ -248,6 +258,52 @@ def classify_cities(image_bytes: bytes, country: str, k: int = 3,
         if v is None:
             continue
         out.append({"label": c, "prob": round(s, 4), "lat": v[0], "lon": v[1]})
+    return out
+
+
+# StreetCLIP 判城市模板（2026-10 A/B 实测：32张4城端到端 68.8% vs CLIP-B/16 43.8%）
+_SC_CITY_TEMPLATES = [
+    "a street view photo taken in {c}",
+    "a photo of the city of {c}",
+    "urban street scene in {c}",
+]
+_sc_city_text_cache: dict[str, "torch.Tensor"] = {}
+
+
+def classify_cities_streetclip(feat, country: str, k: int = 3) -> list[dict]:
+    """已编码 StreetCLIP 特征 → 该国城市 TopK（第二级主力，A/B 实测强于 CLIP-B/16）。
+
+    与 classify_cities 返回同结构：[{"label", "prob", "lat", "lon"}]。
+    feat：encode_streetclip 的输出（与国家打分共用，免重复编码）。
+    """
+    from .countries import COUNTRY_ALIASES
+    from .cities import CITY_COORDS
+
+    country = COUNTRY_ALIASES.get(country, country)
+    cities = _country_cities(country, _city_pool_size(country))
+    if not cities:
+        return []
+    tf = _sc_city_text_cache.get(country)
+    if tf is None:
+        model, proc, _ = _load_engine()
+        texts = [t.format(c=c) for c in cities for t in _SC_CITY_TEMPLATES]
+        inputs = proc(text=texts, return_tensors="pt", padding=True)
+        with torch.no_grad():
+            tf = _feat_tensor(model.get_text_features(**inputs))
+        tf = tf.view(len(cities), len(_SC_CITY_TEMPLATES), -1).mean(1)
+        tf = _feat_tensor(tf)
+        _sc_city_text_cache[country] = tf
+    with torch.no_grad():
+        sims = (feat @ tf.T).squeeze(0)
+    order = torch.argsort(sims, descending=True)
+    out = []
+    for idx in order.tolist()[:k]:
+        c = cities[idx]
+        v = CITY_COORDS.get(c)
+        if v is None:
+            continue
+        out.append({"label": c, "prob": round(float(sims[idx]), 4),
+                    "lat": v[0], "lon": v[1]})
     return out
 
 
