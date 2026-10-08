@@ -1,0 +1,427 @@
+[
+ {
+  "file": "ref_000.jpg",
+  "country": "France",
+  "city": "Paris"
+ },
+ {
+  "file": "ref_001.jpg",
+  "country": "France",
+  "city": "Paris"
+ },
+ {
+  "file": "ref_002.jpg",
+  "country": "France",
+  "city": "Paris"
+ },
+ {
+  "file": "ref_003.jpg",
+  "country": "France",
+  "city": "Paris"
+ },
+ {
+  "file": "ref_004.jpg",
+  "country": "France",
+  "city": "Paris"
+ },
+ {
+  "file": "ref_005.jpg",
+  "country": "France",
+  "city": "Paris"
+ },
+ {
+  "file": "ref_006.jpg",
+  "country": "France",
+  "city": "Paris"
+ },
+ {
+  "file": "ref_007.jpg",
+  "country": "France",
+  "city": "Paris"
+ },
+ {
+  "file": "ref_008.jpg",
+  "country": "Italy",
+  "city": "Rome"
+ },
+ {
+  "file": "ref_009.jpg",
+  "country": "Italy",
+  "city": "Rome"
+ },
+ {
+  "file": "ref_010.jpg",
+  "country": "Italy",
+  "city": "Rome"
+ },
+ {
+  "file": "ref_011.jpg",
+  "country": "Italy",
+  "city": "Rome"
+ },
+ {
+  "file": "ref_012.jpg",
+  "country": "Italy",
+  "city": "Rome"
+ },
+ {
+  "file": "ref_013.jpg",
+  "country": "Italy",
+  "city": "Rome"
+ },
+ {
+  "file": "ref_014.jpg",
+  "country": "Italy",
+  "city": "Rome"
+ },
+ {
+  "file": "ref_015.jpg",
+  "country": "Italy",
+  "city": "Rome"
+ },
+ {
+  "file": "ref_016.jpg",
+  "country": "Spain",
+  "city": "Madrid"
+ },
+ {
+  "file": "ref_017.jpg",
+  "country": "Spain",
+  "city": "Madrid"
+ },
+ {
+  "file": "ref_018.jpg",
+  "country": "Spain",
+  "city": "Madrid"
+ },
+ {
+  "file": "ref_019.jpg",
+  "country": "Spain",
+  "city": "Madrid"
+ },
+ {
+  "file": "ref_020.jpg",
+  "country": "Spain",
+  "city": "Madrid"
+ },
+ {
+  "file": "ref_021.jpg",
+  "country": "Spain",
+  "city": "Madrid"
+ },
+ {
+  "file": "ref_022.jpg",
+  "country": "Spain",
+  "city": "Madrid"
+ },
+ {
+  "file": "ref_023.jpg",
+  "country": "Austria",
+  "city": "Vienna"
+ },
+ {
+  "file": "ref_024.jpg",
+  "country": "Austria",
+  "city": "Vienna"
+ },
+ {
+  "file": "ref_025.jpg",
+  "country": "Austria",
+  "city": "Vienna"
+ },
+ {
+  "file": "ref_026.jpg",
+  "country": "Austria",
+  "city": "Vienna"
+ },
+ {
+  "file": "ref_027.jpg",
+  "country": "Austria",
+  "city": "Vienna"
+ },
+ {
+  "file": "ref_028.jpg",
+  "country": "Austria",
+  "city": "Vienna"
+ },
+ {
+  "file": "ref_029.jpg",
+  "country": "Austria",
+  "city": "Vienna"
+ },
+ {
+  "file": "ref_030.jpg",
+  "country": "Austria",
+  "city": "Vienna"
+ },
+ {
+  "file": "ref_031.jpg",
+  "country": "Hungary",
+  "city": "Budapest"
+ },
+ {
+  "file": "ref_032.jpg",
+  "country": "Hungary",
+  "city": "Budapest"
+ },
+ {
+  "file": "ref_033.jpg",
+  "country": "Hungary",
+  "city": "Budapest"
+ },
+ {
+  "file": "ref_034.jpg",
+  "country": "Hungary",
+  "city": "Budapest"
+ },
+ {
+  "file": "ref_035.jpg",
+  "country": "Hungary",
+  "city": "Budapest"
+ },
+ {
+  "file": "ref_036.jpg",
+  "country": "Ukraine",
+  "city": "Kyiv"
+ },
+ {
+  "file": "ref_037.jpg",
+  "country": "Ukraine",
+  "city": "Kyiv"
+ },
+ {
+  "file": "ref_038.jpg",
+  "country": "Ukraine",
+  "city": "Kyiv"
+ },
+ {
+  "file": "ref_039.jpg",
+  "country": "Ukraine",
+  "city": "Kyiv"
+ },
+ {
+  "file": "ref_040.jpg",
+  "country": "Ukraine",
+  "city": "Kyiv"
+ },
+ {
+  "file": "ref_041.jpg",
+  "country": "Poland",
+  "city": "Warsaw"
+ },
+ {
+  "file": "ref_042.jpg",
+  "country": "Poland",
+  "city": "Warsaw"
+ },
+ {
+  "file": "ref_043.jpg",
+  "country": "Poland",
+  "city": "Warsaw"
+ },
+ {
+  "file": "ref_044.jpg",
+  "country": "Poland",
+  "city": "Warsaw"
+ },
+ {
+  "file": "ref_045.jpg",
+  "country": "Poland",
+  "city": "Warsaw"
+ },
+ {
+  "file": "ref_046.jpg",
+  "country": "Czech Republic",
+  "city": "Prague"
+ },
+ {
+  "file": "ref_047.jpg",
+  "country": "Czech Republic",
+  "city": "Prague"
+ },
+ {
+  "file": "ref_048.jpg",
+  "country": "Czech Republic",
+  "city": "Prague"
+ },
+ {
+  "file": "ref_049.jpg",
+  "country": "Czech Republic",
+  "city": "Prague"
+ },
+ {
+  "file": "ref_050.jpg",
+  "country": "Czech Republic",
+  "city": "Prague"
+ },
+ {
+  "file": "ref_051.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_052.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_053.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_054.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_055.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_056.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_057.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_058.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_059.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_060.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_061.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_062.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_063.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_064.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_065.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_066.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_067.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_068.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_069.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_070.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_071.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_072.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_073.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_074.jpg",
+  "country": "Bolivia",
+  "city": ""
+ },
+ {
+  "file": "ref_075.jpg",
+  "country": "Chile",
+  "city": ""
+ },
+ {
+  "file": "ref_076.jpg",
+  "country": "Chile",
+  "city": ""
+ },
+ {
+  "file": "ref_077.jpg",
+  "country": "Chile",
+  "city": ""
+ },
+ {
+  "file": "ref_078.jpg",
+  "country": "Kazakhstan",
+  "city": ""
+ },
+ {
+  "file": "ref_079.jpg",
+  "country": "Kazakhstan",
+  "city": ""
+ },
+ {
+  "file": "ref_080.jpg",
+  "country": "Kazakhstan",
+  "city": ""
+ },
+ {
+  "file": "ref_081.jpg",
+  "country": "Mongolia",
+  "city": ""
+ },
+ {
+  "file": "ref_082.jpg",
+  "country": "Mongolia",
+  "city": ""
+ },
+ {
+  "file": "ref_083.jpg",
+  "country": "Mongolia",
+  "city": ""
+ },
+ {
+  "file": "ref_084.jpg",
+  "country": "Tanzania",
+  "city": ""
+ }
+]
