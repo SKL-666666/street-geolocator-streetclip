@@ -87,8 +87,10 @@ async def _warmup() -> None:
     async def _local_model():
         # 本地免费模式（StreetCLIP）后台预加载：首次用户调用免等 ~20s
         try:
-            from .geokb.local_engine import _load_engine
+            from .geokb.local_engine import _load_engine, _load_sc_city_cache
             await asyncio.to_thread(_load_engine)
+            # 城市文本特征磁盘缓存预加载（命中则免去该国首次 2.2s 文本编码）
+            await asyncio.to_thread(_load_sc_city_cache)
             logger.info("本地模型已预加载")
         except Exception:
             pass  # 加载失败不阻塞启动；用户用时按需加载

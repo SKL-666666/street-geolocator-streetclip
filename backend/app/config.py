@@ -81,6 +81,7 @@ class Settings(BaseSettings):
 
     # Step4：DINOv2 参考图库检索融合权重 α（score = sc + α×检索归一分；
     # 2026-10 实测 α=0.1~0.15 平台 56.2%→61.8%；0 = 关闭融合）
+    # 设 0 可省 ~2.4s/张(DINOv2编码)，代价约 -6pp
     retrieval_alpha: float = 0.125
 
     # ---- Step8：国家级置信分诊 + 云端VLM复核 ----

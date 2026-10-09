@@ -128,10 +128,7 @@ function flyToCandidate(cand) {
   // curve: 弧线飞行(视角拉高再俯冲), speed: 匀速平滑
   map.flyTo({ center: [lon, lat], zoom, curve: 1.42, speed: 1.6,
               essential: true, bearing: 0, pitch: 0 })
-  // 按坐标找到对应 marker 打开弹窗（不依赖下标，杜绝错位）
-  const target = markers.find((m) => m && m.getLngLat() &&
-    Math.abs(m.getLngLat().lng - lon) < 0.01 && Math.abs(m.getLngLat().lat - lat) < 0.01)
-  if (target) target.togglePopup()
+  // 不再弹窗（用户要求彻底去掉）
 }
 
 function flyToCenter() {
@@ -160,14 +157,8 @@ function renderMarkers() {
     el.className = 'marker'
     el.style.background = rankMap[i] === 1 ? '#dc2626' : '#2563eb'
     el.textContent = rankMap[i]
-    const popup = new maplibregl.Popup({ offset: 24, maxWidth: '240px' }).setHTML(`
-      <div><b>${c.city || c.city_zh || ''}</b>${c.country_zh ? ' · ' + c.country_zh : ''}</div>
-      <div style="color:#6b7280;font-size:12px;margin-top:2px">${Math.min(100, Math.round(c.score * 100))} 置信</div>
-      ${c.thumbnail_url ? `<img src="${c.thumbnail_url}" width="220" style="border-radius:6px;margin-top:6px"/>` : ''}
-    `)
     const marker = new maplibregl.Marker({ element: el })
       .setLngLat([lon, lat])
-      .setPopup(popup)
       .addTo(map)
     markers.push(marker)  // markers[i] = candidates[i] 的标记
   })

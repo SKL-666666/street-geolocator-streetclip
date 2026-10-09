@@ -281,6 +281,47 @@ _SC_CITY_TEMPLATES = [
     "urban street scene in {c}",
 ]
 _sc_city_text_cache: dict[str, "torch.Tensor"] = {}
+_SC_CITY_CACHE_FILE = None  # 懒解析（依赖 settings.data_dir）
+
+
+def _sc_city_cache_path():
+    """城市文本特征磁盘缓存路径（持久化，避免每次进程重启后重编码 ~2.2s/国）。"""
+    global _SC_CITY_CACHE_FILE
+    if _SC_CITY_CACHE_FILE is None:
+        try:
+            from ..config import settings
+            _SC_CITY_CACHE_FILE = str(settings.data_dir / "sc_city_text_cache.pt")
+        except Exception:  # noqa: BLE001
+            _SC_CITY_CACHE_FILE = ""
+    return _SC_CITY_CACHE_FILE
+
+
+def _load_sc_city_cache() -> None:
+    """启动时/首次调用加载磁盘缓存（存在则灌入内存 dict）。"""
+    import os
+    import torch
+    p = _sc_city_cache_path()
+    if not p or not os.path.exists(p) or _sc_city_text_cache:
+        return
+    try:
+        data = torch.load(p, map_location="cpu", weights_only=True)
+        if isinstance(data, dict):
+            _sc_city_text_cache.update(data)
+    except Exception:  # noqa: BLE001 缓存损坏/版本不符 → 忽略，重算
+        pass
+
+
+def _save_sc_city_cache() -> None:
+    import os
+    import torch
+    p = _sc_city_cache_path()
+    if not p:
+        return
+    try:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        torch.save(dict(_sc_city_text_cache), p)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def classify_cities_streetclip(feat, country: str, k: int = 3) -> list[dict]:
@@ -296,6 +337,7 @@ def classify_cities_streetclip(feat, country: str, k: int = 3) -> list[dict]:
     cities = _country_cities(country, _city_pool_size(country))
     if not cities:
         return []
+    _load_sc_city_cache()
     tf = _sc_city_text_cache.get(country)
     if tf is None:
         model, proc, _ = _load_engine()
@@ -306,6 +348,7 @@ def classify_cities_streetclip(feat, country: str, k: int = 3) -> list[dict]:
         tf = tf.view(len(cities), len(_SC_CITY_TEMPLATES), -1).mean(1)
         tf = _feat_tensor(tf)
         _sc_city_text_cache[country] = tf
+        _save_sc_city_cache()   # 持久化，下次进程重启免重编码
     with torch.no_grad():
         sims = (feat @ tf.T).squeeze(0)
     order = torch.argsort(sims, descending=True)

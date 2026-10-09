@@ -643,6 +643,16 @@ class Orchestrator:
             from ..geokb.countries import COUNTRY_ALIASES, country_zh
 
             self._update(result, progress=40, stage="scene", message="图像特征编码中")
+            # StreetCLIP 编码 与 DINOv2 检索相互独立 → 并发执行（省去串行等待 ~2.4s）
+            _retrieval_task = None
+            if settings.retrieval_alpha > 0:
+                async def _run_retrieval():
+                    try:
+                        from ..retrieval.dino_geo import retrieve_countries
+                        return await asyncio.to_thread(retrieve_countries, image_bytes, 5)
+                    except Exception:  # noqa: BLE001
+                        return None
+                _retrieval_task = asyncio.create_task(_run_retrieval())
             # 图像特征只编码一次：国家打分 + 城市打分共用（A/B 实测省一次编码，快 ~20%）
             feat = await asyncio.to_thread(encode_streetclip, image_bytes)
             self._update(result, progress=55, stage="scene", message="国家判定中")
@@ -650,10 +660,9 @@ class Orchestrator:
             # Step4 融合：DINOv2 参考图库检索证据加权（2026-10 实测 56.2%→61.8%，
             # α=0.1~0.15 平台）。图库/模型缺失时静默降级为纯 StreetCLIP。
             top = None
-            if settings.retrieval_alpha > 0:
+            if _retrieval_task is not None:
                 try:
-                    from ..retrieval.dino_geo import retrieve_countries
-                    ret = await asyncio.to_thread(retrieve_countries, image_bytes, 5)
+                    ret = await _retrieval_task
                 except Exception:  # noqa: BLE001
                     ret = None
                 if ret:
