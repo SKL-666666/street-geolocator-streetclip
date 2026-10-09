@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { uploadImage, api, savePrefs as savePrefsApi } from '../api'
+import { uploadImage, uploadFusion, api, savePrefs as savePrefsApi } from '../api'
 
 const emit = defineEmits(['analyzed'])
 
@@ -16,16 +16,25 @@ function loadPrefs() {
 }
 function savePrefs() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify({
-    mode: mode.value, scope: scope.value,
+    mode: mode.value, scope: scope.value, upMode: upMode.value,
   })) } catch { /* 隐私模式忽略 */ }
 }
 const prefs = loadPrefs()
 const mode = ref('local')  // 仅本地模式（本地判国家 + 城市引擎）
 const scope = ref(['world', 'no-cn', 'cn'].includes(prefs.scope) ? prefs.scope : 'world')
+// 上传模式：batch=串行批量（无上限，逐张各自出结果）/ fusion=同地点融合（2~3张并出一个结果）
+const upMode = ref(['batch', 'fusion'].includes(prefs.upMode) ? prefs.upMode : 'batch')
 const progress = ref({ done: 0, total: 0 })
 
 const canSubmit = computed(() => files.value.length && !uploading.value && !api.warmingUp &&
-  !(api.needsSetup && api.localCityEngine === 'llm'))
+  !(api.needsSetup && api.localCityEngine === 'llm') &&
+  (upMode.value === 'batch' || (files.value.length >= 2 && files.value.length <= 3)))
+const upModeHint = computed(() => {
+  if (upMode.value === 'fusion') {
+    return files.value.length < 2 ? '融合模式需选择 2~3 张图' : '并行分析，结果合并为一个'
+  }
+  return '逐张独立分析，各自出结果'
+})
 const modeList = computed(() => Object.entries(api.modes).map(([k, v]) => ({ key: k, ...v })))
 
 async function onCityEngine(e) {
@@ -88,19 +97,26 @@ async function submit() {
   if (!canSubmit.value) return
   uploading.value = true
   error.value = ''
-  const ids = []
   progress.value = { done: 0, total: files.value.length }
   try {
-    // 多图并行上传+分析（同一地区多张图并发提交，进度按完成数递增）
-    const results = await Promise.allSettled(
-      files.value.map((f) => uploadImage(f, mode.value, scope.value)),
-    )
-    results.forEach((r, i) => {
-      if (r.status === 'fulfilled') ids.push(r.value)
-      else error.value = `${files.value[i].name}: ${r.reason?.message || r.reason}`
-      progress.value.done++
-    })
-    if (ids.length) emit('analyzed', ids)
+    if (upMode.value === 'fusion') {
+      // 同地点融合：后端并行分析 2~3 张并聚合为单一结果
+      const fid = await uploadFusion(files.value, mode.value, scope.value)
+      progress.value.done = files.value.length
+      emit('analyzed', [fid])   // 单 id → ResultView 展示融合结果
+    } else {
+      // 串行批量：逐张提交（无上限），各自独立出结果
+      const ids = []
+      for (const f of files.value) {
+        try {
+          ids.push(await uploadImage(f, mode.value, scope.value))
+        } catch (e) {
+          error.value = `${f.name}: ${e.message}`
+        }
+        progress.value.done++
+      }
+      if (ids.length) emit('analyzed', ids)
+    }
   } finally {
     uploading.value = false
   }
@@ -113,61 +129,77 @@ async function submit() {
       <h2>上传街景照片</h2>
       <p class="muted">支持多选，Ctrl+V 直接粘贴图片</p>
 
-      <!-- 模式选择已隐藏（仅剩单一"本地免费"模式，选择器冗余；mode 仍默认 local） -->
+      <!-- 上传方式：串行批量 / 同地点融合 -->
+      <div class="city-engine">
+        <b>上传方式</b>
+        <div class="ce-opts">
+          <label :class="{ on: upMode === 'batch' }">
+            <input type="radio" value="batch" :checked="upMode === 'batch'"
+                   @change="upMode = 'batch'; savePrefs()" />
+            <span>串行批量</span>
+          </label>
+          <label :class="{ on: upMode === 'fusion' }">
+            <input type="radio" value="fusion" :checked="upMode === 'fusion'"
+                   @change="upMode = 'fusion'; savePrefs()" />
+            <span>同地点融合 2~3 张</span>
+          </label>
+        </div>
+        <small class="muted">{{ upModeHint }}</small>
+      </div>
 
-      <!-- 范围选择（全世界 / 除中国大陆 / 中国模式） -->
+      <!-- 范围选择 -->
       <div class="scopes">
         <button class="scope-card" :class="{ active: scope === 'world' }" @click="scope = 'world'; savePrefs()">
-          🌐 全世界
+          全世界
         </button>
         <button class="scope-card" :class="{ active: scope === 'no-cn' }" @click="scope = 'no-cn'; savePrefs()">
-          🌏 除中国大陆
+          除中国大陆
         </button>
         <button class="scope-card china" :class="{ active: scope === 'cn' }" @click="scope = 'cn'; savePrefs()">
-          🇨🇳 中国模式
+          中国模式
         </button>
       </div>
       <div v-if="scope === 'no-cn'" class="scope-note">
-        将排除中国大陆候选，且图片中的中文文字不会被作为推理依据。
+        排除中国大陆候选，图片中的中文文字不参与推理。
       </div>
       <div v-if="scope === 'cn'" class="scope-note china-note">
-        中国模式：直接用城市模型推断中国城市（更快、更准），跳过国家级步骤。
+        直接推断中国城市，跳过国家级步骤。
       </div>
 
-      <!-- 本地模式国家引擎（置信分诊） -->
+      <!-- 国家引擎 -->
       <div v-if="mode === 'local'" class="city-engine">
         <b>国家判断引擎</b>
         <div class="ce-opts">
           <label :class="{ on: api.nationalEngine === 'local' }">
             <input type="radio" value="local" :checked="api.nationalEngine === 'local'"
                    @change="onNationalEngine" />
-            <span>纯本地（全信 StreetCLIP，零 API）</span>
+            <span>纯本地</span>
           </label>
           <label :class="{ on: api.nationalEngine === 'adaptive' }">
             <input type="radio" value="adaptive" :checked="api.nationalEngine === 'adaptive'"
                    @change="onNationalEngine" />
-            <span>自适应（低置信调 VLM 复核，更准，耗 token）</span>
+            <span>自适应 VLM 复核</span>
           </label>
         </div>
-        <small class="muted">自适应：置信度高直接用 StreetCLIP（省 API），置信度低才调云端 VLM 复核国家。</small>
+        <small class="muted">自适应：低置信时调云端 VLM 复核国家。</small>
       </div>
 
-      <!-- 本地模式城市引擎 -->
+      <!-- 城市引擎 -->
       <div v-if="mode === 'local'" class="city-engine">
         <b>城市判断引擎</b>
         <div class="ce-opts">
           <label :class="{ on: api.localCityEngine === 'clip' }">
             <input type="radio" value="clip" :checked="api.localCityEngine === 'clip'"
                    @change="onCityEngine" />
-            <span>本地 CLIP-B/16（免费）</span>
+            <span>本地模型</span>
           </label>
           <label :class="{ on: api.localCityEngine === 'llm' }">
             <input type="radio" value="llm" :checked="api.localCityEngine === 'llm'"
                    @change="onCityEngine" />
-            <span>云端 LLM 定城市（更准，耗 token）</span>
+            <span>云端 LLM</span>
           </label>
         </div>
-        <small class="muted">国家用本地 StreetCLIP（Top3）；此处决定"国家→城市"一级用哪个引擎。</small>
+        <small class="muted">决定"国家 → 城市"一级使用哪个引擎。</small>
       </div>
 
       <div
@@ -207,8 +239,8 @@ async function submit() {
       </div>
       <!-- 云端 LLM 定城市且未配置 API Key：禁止发送图片 -->
       <div v-if="api.needsSetup && api.localCityEngine === 'llm'" class="no-key-note">
-        △ <b>云端 LLM 定城市需要 API Key</b>：请先到右上角「⚙️ 设置」填写你自己的 API Key，
-        或切换到「本地 CLIP-B/16」城市引擎（免费，无需 Key）。
+        △ <b>云端 LLM 定城市需要 API Key</b>：请先到右上角「设置」填写 API Key，
+        或切换到「本地模型」城市引擎。
       </div>
       <div v-if="error" class="error">{{ error }}</div>
 

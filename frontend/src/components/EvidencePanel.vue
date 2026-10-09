@@ -83,7 +83,7 @@ h3 { margin-bottom: 12px; }
 .kb-table th, .kb-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: top; }
 .kb-table th { color: var(--text-muted); font-weight: 500; }
 .country-name { font-weight: 600; white-space: nowrap; }
-.unverified { font-size: 11px; color: #b45309; background: #fef3c7; border-radius: 4px; padding: 1px 5px; margin-left: 4px; }
+.unverified { font-size: 11px; color: #b45309; background: var(--bg-subtle); border-radius: 4px; padding: 1px 5px; margin-left: 4px; }
 .mini-bar { width: 70px; height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; display: inline-block; vertical-align: middle; }
 .mini-bar span { display: block; height: 100%; background: var(--primary); }
 .mini-bar.kb span { background: var(--accent); }

@@ -14,9 +14,9 @@
   --primary-hover: #1d4ed8;
   --primary-soft: #eff6ff;
   --primary-faint: #93c5fd;
-  --accent: #059669;         /* 范围选中 */
-  --accent-soft: #ecfdf5;
-  --accent-text: #065f46;
+  --accent: #0891b2;         /* 青-冷色 选中 */
+  --accent-soft: #ecfeff;
+  --accent-text: #155e75;
   --danger: #dc2626;
   --danger-soft: #fef2f2;
   --danger-text: #991b1b;
@@ -27,27 +27,27 @@
 }
 
 html.dark {
-  --bg: #0f172a;
-  --bg-card: #1e293b;
-  --bg-subtle: #263449;
-  --bg-hover: #233049;
-  --text: #e2e8f0;
-  --text-muted: #94a3b8;
-  --text-faint: #64748b;
-  --border: #334155;
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --primary-soft: #1e3a5f;
-  --primary-faint: #1e40af;
-  --accent: #10b981;
-  --accent-soft: #064e3b;
-  --accent-text: #6ee7b7;
-  --danger: #ef4444;
-  --danger-soft: #450a0a;
+  --bg: #000000;            /* 纯黑背景 */
+  --bg-card: #0b1220;       /* 冷调深蓝黑 */
+  --bg-subtle: #111a2e;
+  --bg-hover: #16233d;
+  --text: #dbe7f5;          /* 冷白 */
+  --text-muted: #8aa2bd;    /* 冷灰蓝 */
+  --text-faint: #5b7291;
+  --border: #1e2c47;        /* 冷色描边 */
+  --primary: #3b82f6;       /* 蓝 */
+  --primary-hover: #60a5fa;
+  --primary-soft: #12244a;
+  --primary-faint: #1e3a8a;
+  --accent: #22d3ee;        /* 青(冷) 替代绿 */
+  --accent-soft: #083344;
+  --accent-text: #67e8f9;
+  --danger: #f87171;        /* 冷调红(偏粉) */
+  --danger-soft: #3b1113;
   --danger-text: #fca5a5;
-  --shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  --badge-bg: #334155;
-  --badge-text: #cbd5e1;
+  --shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  --badge-bg: #182846;
+  --badge-text: #a9c1de;
 }
 
 body {
@@ -88,14 +88,14 @@ body {
   background: var(--badge-bg);
   color: var(--badge-text);
 }
-.badge.exact { background: #d1fae5; color: #065f46; }
+.badge.exact { background: #cffafe; color: #155e75; }
 .badge.street { background: #dbeafe; color: #1e40af; }
-.badge.city { background: #fef3c7; color: #92400e; }
-.badge.country { background: #fee2e2; color: #991b1b; }
-html.dark .badge.exact { background: #064e3b; color: #6ee7b7; }
-html.dark .badge.street { background: #1e3a5f; color: #93c5fd; }
-html.dark .badge.city { background: #451a03; color: #fcd34d; }
-html.dark .badge.country { background: #450a0a; color: #fca5a5; }
+.badge.city { background: #e0e7ff; color: #3730a3; }
+.badge.country { background: #ffe4e6; color: #9f1239; }
+html.dark .badge.exact { background: #083344; color: #67e8f9; }
+html.dark .badge.street { background: #12244a; color: #93c5fd; }
+html.dark .badge.city { background: #1a2352; color: #a5b4fc; }
+html.dark .badge.country { background: #3b1113; color: #fca5a5; }
 
 .muted { color: var(--text-muted); font-size: 13px; }
 .mono { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; }

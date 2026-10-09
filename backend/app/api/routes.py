@@ -12,7 +12,8 @@ import json  # noqa: E402（导出用）
 
 from ..config import ANALYZE_MODES, get_analyze_mode, settings
 from ..pipeline.orchestrator import Orchestrator
-from ..schemas import AnalyzeResponse, HealthResponse, TaskQueryResponse, TaskResult, TaskStatus
+from ..schemas import (AnalyzeResponse, FusionResponse, HealthResponse,
+                       TaskQueryResponse, TaskResult, TaskStatus)
 from ..storage import TaskStore
 
 router = APIRouter(prefix="/api")
@@ -233,6 +234,49 @@ async def analyze(request: Request, file: UploadFile = File(...),
     scope = scope if scope in ("world", "no-cn", "cn") else "world"
     task_id = orch.submit(data, file.filename or "upload.jpg", mode=mode, scope=scope)
     return AnalyzeResponse(task_id=task_id)
+
+
+@router.post("/analyze-fusion", response_model=FusionResponse)
+async def analyze_fusion(request: Request,
+                         files: list[UploadFile] = File(...),
+                         mode: str = Form("local"), scope: str = Form("world")):
+    """同地点多图融合：2~3 张图并行分析 → 聚合为单一结果。
+
+    与 /api/analyze 的差异：本端点返回融合后的 task_id（轮询该 id 得到
+    聚合结果，而非每张图各自的子任务）。
+    """
+    orch: Orchestrator = _get_orchestrator(request)
+
+    from ..main import APP_READY, WARMUP_ELAPSED
+    if not APP_READY:
+        raise HTTPException(
+            status_code=503,
+            detail=f"本地模型预热中（已耗时 {WARMUP_ELAPSED:.0f}s），请稍候再上传",
+        )
+    if not 2 <= len(files) <= 3:
+        raise HTTPException(status_code=400,
+                            detail="融合模式需 2~3 张图（单张请用普通上传）")
+    if not settings.llm_api_key and settings.local_city_engine == "llm":
+        raise HTTPException(status_code=503, detail="云端 LLM 定城市需要 API Key")
+
+    images: list[tuple[bytes, str]] = []
+    for f in files:
+        data = await f.read()
+        if not data:
+            raise HTTPException(status_code=400, detail="空文件")
+        if len(data) > settings.max_upload_mb * 1024 * 1024:
+            raise HTTPException(status_code=413,
+                                detail=f"{f.filename} 超过 {settings.max_upload_mb}MB 限制")
+        images.append((data, f.filename or "upload.jpg"))
+
+    valid_modes = set(ANALYZE_MODES.keys())
+    mode = mode.lower() if mode.lower() in valid_modes else settings.analyze_mode
+    scope = scope if scope in ("world", "no-cn", "cn") else "world"
+    # 并行提交 + 聚合（同步等待全部完成，上限 180s）
+    task_id = await orch.fusion_submit(images, mode=mode, scope=scope)
+    return FusionResponse(task_id=task_id,
+                          source_ids=orch.get(task_id).meta.get("fusion_of", [])
+                          if orch.get(task_id) else [])
 
 
 @router.get("/tasks/{task_id}", response_model=TaskQueryResponse)

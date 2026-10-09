@@ -145,6 +145,12 @@ class AnalyzeResponse(BaseModel):
     task_id: str
 
 
+class FusionResponse(BaseModel):
+    """同地点多图融合（并行分析后聚合为单一结果）。"""
+    task_id: str                 # 融合结果 id（可直接轮询 /api/tasks/{id}）
+    source_ids: list[str] = []   # 参与融合的原始任务 id
+
+
 class TaskQueryResponse(BaseModel):
     task: TaskResult
 

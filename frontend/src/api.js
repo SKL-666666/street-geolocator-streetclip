@@ -111,7 +111,7 @@ export async function deleteLLMConfig(configId) {
 export async function uploadImage(file, mode = 'local', scope = 'world') {
   // 云端 LLM 定城市且未配置 Key：直接拒绝发送图片（后端 503 双重兜底）
   if (api.needsSetup && api.localCityEngine === 'llm') {
-    throw new Error('云端 LLM 定城市需要 API Key：请先到「⚙️ 设置」填写，或切到「本地 CLIP-B/16」城市引擎')
+    throw new Error('云端 LLM 定城市需要 API Key：请先到「设置」填写，或切到「本地模型」城市引擎')
   }
   const form = new FormData()
   form.append('file', file)
@@ -121,6 +121,24 @@ export async function uploadImage(file, mode = 'local', scope = 'world') {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || `上传失败（HTTP ${res.status}）`)
+  }
+  const data = await res.json()
+  return data.task_id
+}
+
+// 同地点多图融合：2~3 张并行分析 → 返回融合结果 task_id
+export async function uploadFusion(files, mode = 'local', scope = 'world') {
+  if (api.needsSetup && api.localCityEngine === 'llm') {
+    throw new Error('云端 LLM 定城市需要 API Key：请先到「设置」填写')
+  }
+  const form = new FormData()
+  for (const f of files) form.append('files', f)
+  form.append('mode', mode)
+  form.append('scope', scope)
+  const res = await fetch('/api/analyze-fusion', { method: 'POST', body: form })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `融合上传失败（HTTP ${res.status}）`)
   }
   const data = await res.json()
   return data.task_id

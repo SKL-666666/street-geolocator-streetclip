@@ -360,7 +360,7 @@ onUnmounted(() => {
 .enhance-body { flex: 1; }
 .enhance-summary { font-size: 13px; color: var(--text-muted); }
 .enhance-detail { font-size: 12px; margin-top: 2px; }
-.enhance-detail.warn { color: #92400e; }
+.enhance-detail.warn { color: var(--text-muted); }
 .reason-card h3 { margin-bottom: 10px; }
 .reason-row { display: flex; gap: 10px; padding: 6px 0; }
 .reason-rank { font-weight: 700; color: var(--primary); font-size: 14px; min-width: 24px; }
@@ -399,7 +399,7 @@ onUnmounted(() => {
 .map-card { padding: 12px; }
 .country-note {
   margin-top: 10px;
-  background: var(--bg-card)beb; color: #92400e;
+  background: var(--bg-card)beb; color: var(--text-muted);
   border: 1px solid #fcd34d;
   border-radius: 8px;
   padding: 8px 12px;
@@ -431,7 +431,7 @@ onUnmounted(() => {
 .empty-result .muted { margin-top: 3px; }
 .timeout-note {
   margin-top: 10px; padding: 8px 12px;
-  background: #fef3c7; color: #92400e;
+  background: var(--bg-subtle); color: var(--text-muted);
   border-radius: 8px; font-size: 13px;
 }
 

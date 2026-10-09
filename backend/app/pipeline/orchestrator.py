@@ -178,6 +178,127 @@ class Orchestrator:
     def get(self, task_id: str) -> Optional[TaskResult]:
         return self.store.get(task_id)
 
+    # ---------- 同地点多图融合（Step10）----------
+
+    async def fusion_submit(self, images: list[tuple[bytes, str]],
+                            mode: str = "local", scope: str = "world") -> str:
+        """同地点多图并行分析 → 等待全部完成 → 聚合为单一融合结果。
+
+        images: [(image_bytes, filename), ...]，上限 3 张（路由层校验）。
+        返回融合结果 task_id，可直接轮询 /api/tasks/{id}。
+        """
+        # ① 并行提交各图（各自独立走完整管线）
+        ids = [self.submit(b, name, mode=mode, scope=scope)
+               for b, name in images]
+        # ② 等待全部子任务完成（上限 180s，超时按已完成的聚合）
+        deadline = time.monotonic() + 180
+        while time.monotonic() < deadline:
+            states = [self.store.get(i) for i in ids]
+            if all(s is not None and s.status in
+                   (TaskStatus.SUCCEEDED, TaskStatus.FAILED) for s in states):
+                break
+            await asyncio.sleep(0.5)
+        done = [s for s in (self.store.get(i) for i in ids)
+                if s is not None and s.status == TaskStatus.SUCCEEDED and s.candidates]
+        if not done:
+            # 全部失败 → 造一个失败态合成任务
+            fid = uuid.uuid4().hex[:12]
+            fail = TaskResult(task_id=fid, filename="fusion", status=TaskStatus.FAILED,
+                              stage="failed", mode=mode, meta={"scope": scope,
+                                                               "fusion_of": ids},
+                              error="融合失败：所有子图分析均未成功")
+            self.store.save(fail)
+            return fid
+        merged = self._merge_results(done)
+        merged.meta = {**merged.meta, "scope": scope, "fusion_of": ids,
+                       "fusion_count": len(done)}
+        self.store.save(merged)
+        return merged.task_id
+
+    @staticmethod
+    def _merge_results(results: list[TaskResult]) -> TaskResult:
+        """N 个成功结果 → 单一融合结果：
+        - 国家：各图 scene.country_hypotheses 置信度累加 → 重排 Top3
+        - 城市：国家同源的 city_hypotheses 置信度累加 → 重排
+        - 候选：按 (country, city) 分组，score 取组内最高，按融合国家分排序
+        """
+        from ..schemas import Candidate, CountryHypothesis, CityHypothesis, SceneAnalysis
+
+        first = results[0]
+        base = TaskResult(task_id=uuid.uuid4().hex[:12],
+                          filename=f"fusion×{len(results)}",
+                          status=TaskStatus.SUCCEEDED, stage="done",
+                          mode=first.mode, has_image=False,
+                          confidence_level=first.confidence_level)
+
+        # 国家置信累加
+        ctry_acc: dict[str, float] = {}
+        ctry_zh: dict[str, str] = {}
+        for r in results:
+            for h in (r.scene.country_hypotheses if r.scene else []) or []:
+                ctry_acc[h.country] = ctry_acc.get(h.country, 0.0) + h.confidence
+                if h.country_zh:
+                    ctry_zh[h.country] = h.country_zh
+        # 城市置信累加
+        city_acc: dict[tuple[str, str], float] = {}
+        city_meta: dict[tuple[str, str], CityHypothesis] = {}
+        for r in results:
+            for h in (r.scene.city_hypotheses if r.scene else []) or []:
+                k = (h.country, h.city)
+                city_acc[k] = city_acc.get(k, 0.0) + h.confidence
+                city_meta[k] = h
+
+        # 融合国家 Top3（归一到 0~1：累加和 / 图数）
+        n = len(results)
+        ranked_ctry = sorted(ctry_acc.items(), key=lambda x: -x[1])
+        fused_country = [(c, min(1.0, s / n)) for c, s in ranked_ctry[:3]]
+        # 融合城市 Top3
+        ranked_city = sorted(city_acc.items(), key=lambda x: -x[1])
+        fused_city = [(k, min(1.0, s / n)) for k, s in ranked_city[:3]]
+
+        # 场景：取首个成功图的 scene，替换假设为融合版
+        scene = None
+        if first.scene:
+            scene = first.scene.model_copy(deep=True)
+            scene.country_hypotheses = [
+                CountryHypothesis(country=c, country_zh=ctry_zh.get(c, ""),
+                                  confidence=round(s, 4))
+                for c, s in fused_country]
+            scene.city_hypotheses = [
+                CityHypothesis(city=k[1], country=k[0],
+                               country_zh=ctry_zh.get(k[0], ""),
+                               lat=city_meta[k].lat, lon=city_meta[k].lon,
+                               confidence=round(s, 4))
+                for k, s in fused_city if k in city_meta]
+            scene.summary = (f"多图融合({n}张)：国家Top1={fused_country[0][0] if fused_country else '?'}"
+                             f"，城市Top1={fused_city[0][1] if fused_city else '?'}")
+        base.scene = scene
+
+        # 候选：按 (country, city) 去重聚合，score 用融合国家分(有城市用城市分)
+        group: dict[tuple[str, str], Candidate] = {}
+        for r in results:
+            for c in r.candidates:
+                k = (c.country, c.city)
+                if k not in group or c.score > group[k].score:
+                    group[k] = c.model_copy(deep=True)
+        ctry_score = dict(fused_country)
+        city_score = {k: s for k, s in fused_city}
+        fused_cands = []
+        for k, cand in group.items():
+            s = city_score.get(k) or ctry_score.get(k[0]) or cand.score
+            cand.score = round(s, 4)
+            cand.evidence = [f"多图融合×{n}"] + list(cand.evidence)[:4]
+            fused_cands.append(cand)
+        fused_cands.sort(key=lambda c: -c.score)
+        for i, c in enumerate(fused_cands, 1):
+            c.rank = i
+        base.candidates = fused_cands[:6]
+        base.elapsed_ms = max(r.elapsed_ms for r in results)
+        if first.gps:
+            base.gps = first.gps
+        Orchestrator._annotate_candidates(base)
+        return base
+
     # ---------- 内部执行 ----------
 
     async def _run(self, task_id: str, image_bytes: bytes, mode: str = "balanced",
