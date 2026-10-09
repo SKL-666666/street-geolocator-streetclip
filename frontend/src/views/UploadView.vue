@@ -75,7 +75,10 @@ function onGlobalPaste(e) {
 }
 
 onMounted(() => window.addEventListener('paste', onGlobalPaste))
-onUnmounted(() => window.removeEventListener('paste', onGlobalPaste))
+onUnmounted(() => {
+  window.removeEventListener('paste', onGlobalPaste)
+  clearInterval(pctTimer)
+})
 
 function onFileInput(e) {
   if (e.target.files?.length) addFiles(e.target.files)
@@ -93,11 +96,31 @@ function onDrop(e) {
   if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files)
 }
 
+// 平滑显示进度（与结果页同算法）：向真实目标靠拢，不跳变
+const shownPct = ref(0)
+let pctTimer = null
+function pctLoop() {
+  if (!uploading.value) return
+  const target = Math.min(95, Math.max(progress.value.pct, shownPct.value))
+  shownPct.value = Math.min(95, shownPct.value + (target - shownPct.value) * 0.18 + 0.3)
+}
+function startPctLoop() {
+  shownPct.value = 0
+  clearInterval(pctTimer)
+  pctTimer = setInterval(pctLoop, 120)
+}
+function stopPctLoop(finish) {
+  clearInterval(pctTimer)
+  pctTimer = null
+  if (finish) shownPct.value = 100
+}
+
 async function submit() {
   if (!canSubmit.value) return
   uploading.value = true
   error.value = ''
   progress.value = { done: 0, total: files.value.length, pct: 0 }
+  startPctLoop()
   try {
     if (upMode.value === 'fusion') {
       // 同地点融合：后端立即返回占位id(后台并行分析+聚合)，前端轮询直到完成
@@ -130,6 +153,14 @@ async function submit() {
       if (ids.length) emit('analyzed', ids)
     }
   } finally {
+    // 完成动画: 进度先平滑冲到100再收起(避免60%→瞬间消失的突兀)
+    clearInterval(pctTimer); pctTimer = null
+    const t0 = Date.now()
+    while (shownPct.value < 100 && Date.now() - t0 < 900) {
+      shownPct.value = Math.min(100, shownPct.value + 7)
+      await new Promise((r) => setTimeout(r, 60))
+    }
+    stopPctLoop(true)
     uploading.value = false
   }
 }
@@ -246,10 +277,13 @@ async function submit() {
                        : (files.length > 1 ? `开始分析 ${files.length} 张` : '开始分析') }}
         </button>
       </div>
-      <!-- 进度条：真实百分比（融合=后端子任务stage均值，批量=提交进度） -->
-      <div v-if="uploading" class="progress-track">
-        <div class="progress-fill" :style="{ width: progress.pct + '%' }"></div>
-        <span class="progress-num">{{ progress.pct }}%</span>
+      <!-- 进度条：与结果页同风格（标题+百分比+圆角渐变条），平滑推进 -->
+      <div v-if="uploading" class="progress-card">
+        <div class="progress-head">
+          <span>{{ upMode === 'fusion' ? '融合分析中' : `已提交 ${progress.done}/${progress.total}` }}</span>
+          <span class="muted">{{ shownPct }}%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" :style="{ width: shownPct + '%' }"></div></div>
       </div>
       <!-- 预热中：本地模型加载，禁止上传 -->
       <div v-if="api.warmingUp" class="no-key-note">
@@ -373,19 +407,10 @@ async function submit() {
   font-size: 11px; cursor: pointer;
 }
 .actions { display: flex; justify-content: center; }
-.progress-track {
-  margin-top: 12px; height: 6px; border-radius: 3px;
-  background: var(--bg-subtle); overflow: visible;
-}
-.progress-fill {
-  height: 100%; background: var(--primary); border-radius: 3px;
-  transition: width 0.3s ease; width: 0;
-}
-.progress-track { position: relative; }
-.progress-num {
-  position: absolute; right: 0; top: 8px;
-  font-size: 11px; color: var(--text-muted);
-}
+.progress-card { margin-top: 14px; }
+.progress-head { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
+.progress-bar { height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #3b82f6); transition: width 0.2s linear; }
 .no-key-note {
   margin-top: 12px;
   background: var(--danger-soft); color: var(--danger-text);

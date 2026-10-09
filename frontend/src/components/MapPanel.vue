@@ -131,7 +131,9 @@ function flyToCandidate(cand) {
   const [lon, lat] = display(cand.lon, cand.lat)
   // 缩放级别（收敛版）：国家级示意 5（国家全览），其余 6（城市周边，不再钻到街道级）
   const zoom = cand.source === 'country' ? 5 : 6
-  map.easeTo({ center: [lon, lat], zoom, duration: 350, essential: true })
+  // curve: 弧线飞行(视角拉高再俯冲), speed: 匀速平滑
+  map.flyTo({ center: [lon, lat], zoom, curve: 1.42, speed: 1.6,
+              essential: true, bearing: 0, pitch: 0 })
   // 按坐标找到对应 marker 打开弹窗（不依赖下标，杜绝错位）
   const target = markers.find((m) => m && m.getLngLat() &&
     Math.abs(m.getLngLat().lng - lon) < 0.01 && Math.abs(m.getLngLat().lat - lat) < 0.01)
@@ -142,7 +144,7 @@ function flyToCenter() {
   if (!map) return
   const [lon, lat] = props.center || (props.candidates[0] ? display(props.candidates[0].lon, props.candidates[0].lat) : null)
   if (lon == null || lat == null) return
-  map.easeTo({ center: [lon, lat], zoom: 6, duration: 350 })
+  map.flyTo({ center: [lon, lat], zoom: 6, curve: 1.42, speed: 1.6 })
 }
 
 function renderMarkers() {
@@ -243,8 +245,9 @@ onMounted(() => {
     // 手动滚轮缩放: 细步进+即时响应, 避免默认长动画卡顿
     zoomDelta: 0.25,
     wheelZoomPeriod: 30,
-    clickZoom: false,          // 禁双击缩放动画(改由UI控制)
   })
+  // Bug修复: 可点击(纠错)模式下禁用默认双击缩放, 否则双击选点会同时触发放大
+  if (props.clickable) map.doubleClickZoom.disable()
   map.addControl(new maplibregl.NavigationControl(), 'top-right')
     map.on('load', renderMarkers)
     // 双击地图 → 纠错选点（单击不触发，避免与拖动/查看冲突；可反复双击重新选择）

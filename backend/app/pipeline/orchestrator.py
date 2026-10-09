@@ -642,9 +642,10 @@ class Orchestrator:
             from ..geokb.citylib import city_coords, city_zh
             from ..geokb.countries import COUNTRY_ALIASES, country_zh
 
-            self._update(result, progress=40, stage="scene", message="本地模型推理中")
+            self._update(result, progress=40, stage="scene", message="图像特征编码中")
             # 图像特征只编码一次：国家打分 + 城市打分共用（A/B 实测省一次编码，快 ~20%）
             feat = await asyncio.to_thread(encode_streetclip, image_bytes)
+            self._update(result, progress=55, stage="scene", message="国家判定中")
             # 第一级：本地 StreetCLIP 判国家 Top3（template 等权平均）
             # Step4 融合：DINOv2 参考图库检索证据加权（2026-10 实测 56.2%→61.8%，
             # α=0.1~0.15 平台）。图库/模型缺失时静默降级为纯 StreetCLIP。
@@ -728,8 +729,8 @@ class Orchestrator:
                             seen.add(t["label"])
                         if len(top) >= 3:
                             break
-            # Top1/Top2 分差 → 置信度标注（0.04 阈值与 2026-10 A/B 评测一致；
-            # 换prompt复核实测无效已废弃，此标注仅供 UI 提示"候选接近"）
+            self._update(result, progress=62, stage="scene", message="城市判定中")
+            # Top1/Top2 分差 → 置信度标注（标定后阈值0.07；换prompt复核实测无效已废弃）
             close = len(top) >= 2 and top[0]["prob"] - top[1]["prob"] < 0.07
             # 第二级引擎（config 切换）：
             #   llm（推荐）——Top3 国家 + 原图发给云端 LLM，一次定 3 城市（未必是首都），

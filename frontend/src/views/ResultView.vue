@@ -14,7 +14,9 @@ const shownProgress = ref(0)
 let timer = null
 let smoothTimer = null
 
-const MODE_LABEL = { fast: '快速', balanced: '平衡', deep: '深度' }
+const MODE_LABEL = { fast: '快速', balanced: '平衡', deep: '深度', local: '本地' }
+const STAGE_LABEL = { queued: '排队中', exif: '读取元数据', scene: '模型分析', geokb: '事实核查',
+  tools: '外部查证', streetview: '街景回查', fusing: '融合分析', done: '完成', failed: '失败' }
 const SRC_LABEL = {
   exif: 'EXIF GPS', llm: 'LLM 假设', prior: '视觉先验', geocode: '地理编码',
   streetview: '街景', kartaview: 'KartaView 街景', country: '国家级示意（几何中心）',
@@ -49,18 +51,21 @@ async function onRetry() {
   }
 }
 
-// 平滑进度：基本匀速推进（每 120ms 固定步长，不追后端跳变值），完成时冲到 100
-// STEP=0.55 → 0→95 约 20.8 秒（覆盖 local 模式 7~20s 典型耗时）
-const STEP = 0.55
+// 平滑进度：目标 = 后端真实 progress，向其 lerp 靠拢 + 恒定微漂移（后端阶段卡住也一直在动）；
+// 完成时每 120ms +6 平滑冲到 100（不再瞬间跳变）。
 function smoothLoop() {
   const t = task.value
   if (!t) return
   const done = ['succeeded', 'failed'].includes(t.status)
   if (done) {
-    shownProgress.value = 100
-  } else {
-    shownProgress.value = Math.min(95, shownProgress.value + STEP)
+    shownProgress.value = Math.min(100, shownProgress.value + 6)
+    return
   }
+  const target = Math.min(95, Math.max(t.progress || 0, shownProgress.value))
+  shownProgress.value = Math.min(
+    95,
+    shownProgress.value + (target - shownProgress.value) * 0.18 + 0.3,
+  )
 }
 
 const finished = computed(() => task.value && ['succeeded', 'failed'].includes(task.value.status))
@@ -155,7 +160,7 @@ onUnmounted(() => {
       </div>
       <div class="progress-bar"><div class="progress-fill" :style="{ width: pct + '%' }"></div></div>
       <div class="muted" style="margin-top: 8px">
-        阶段：{{ task.stage }} · 模式：{{ MODE_LABEL[task.mode] || task.mode }} · 请稍候
+        阶段：{{ STAGE_LABEL[task.stage] || task.stage }} · 模式：{{ MODE_LABEL[task.mode] || task.mode }} · 请稍候
       </div>
     </div>
 
@@ -350,11 +355,8 @@ onUnmounted(() => {
 .fb-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
 .fb-btn { padding: 10px 24px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-card); cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.15s; }
 .fb-btn:hover { border-color: var(--text-faint); }
-.fb-good { color: var(--accent); } .fb-good:hover { background: var(--accent-soft); border-color: var(--accent); }
-.fb-bad { color: var(--danger); } .fb-bad:hover { background: var(--danger-soft); border-color: var(--danger); }
-.fb-correction-card { text-align: center; }
+  .fb-correction-card { text-align: center; }
 .fb-correction-title { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
-.fb-thanks { text-align: center; color: var(--accent-text); font-size: 15px; padding: 16px; }
 .exact-banner {
   background: var(--accent-soft); color: var(--accent-text);
   padding: 10px 14px; border-radius: 8px; margin-bottom: 12px;
@@ -418,22 +420,12 @@ onUnmounted(() => {
   background: var(--accent-soft); color: var(--accent-text);
   border-radius: 10px; font-size: 13px; font-weight: 600;
 }
-.fb-actions { display: flex; gap: 12px; justify-content: center; padding: 8px 0; }
 .fb-btn { padding: 10px 28px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--bg-card);
   cursor: pointer; font-size: 15px; font-weight: 600; transition: all 0.15s; }
 .fb-btn:hover { border-color: var(--text-faint); background: var(--bg-subtle); }
 .fb-btn:disabled { opacity: 0.4; cursor: default; }
-.fb-good { color: var(--accent); border-color: var(--accent); }
-.fb-good:hover { background: var(--accent-soft); }
-.fb-bad { color: var(--danger); border-color: var(--danger); }
-.fb-bad:hover { background: var(--danger-soft); }
-.fb-map-pick { margin-top: 12px; }
-.fb-submit { margin-top: 8px; border-color: var(--primary); color: var(--primary); }
 
 
-.fb-map-pick { margin-top: 12px; min-height: 300px; }
-.fb-map-pick p { margin-bottom: 6px; }
-.fb-submit { margin-top: 8px; border-color: var(--primary); color: var(--primary); }
 .fb-done { text-align: center; color: var(--accent); padding: 16px; }
 /* 竖屏/窄屏适配（16:9 → 9:16）：候选行换行堆叠，地图高度随可用高度缩放 */
 @media (max-width: 640px) {
