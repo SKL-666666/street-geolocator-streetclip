@@ -84,51 +84,31 @@ const balanceIssue = computed(() => task.value?.meta?.insufficient_balance === t
 
 const focusCandidate = ref(null)  // 地图要聚焦的候选对象（不依赖下标，杜绝错位）
 
-// 用户反馈（好/不好 + 地图选点）
-const fbSubmitted = ref(false)
-const fbBad = ref(false)
-const fbPick = ref(null)
-const feedbackMapRef = ref(null)
+// 纠错：双击主地图任意位置 → 直接提交该点为正确位置（可反复双击重新选择）
+const fbToast = ref('')        // 纠错提示条文案
+let fbToastTimer = null
 
-async function submitFeedbackGood() {
+async function onMapPick(event) {
   if (!task.value) return
-  await fetch(`/api/tasks/${task.value.task_id}/feedback`, {
-    method: 'POST', body: new URLSearchParams({ satisfaction: '5' })
-  })
-  fbSubmitted.value = true
-}
-
-function onMapPick(event) {
-  const detail = event?.detail || event
-  fbPick.value = { lat: detail?.lat || detail?.center?.lat || 0, lon: detail?.lon || detail?.center?.lng || 0 }
-}
-
-// 纠正模式开启时，默认飞到系统预测点
-function onBadClick() {
-  fbBad.value = true
-  const top = sortedCandidates.value[0]?.c
-  if (top) {
-    fbPick.value = { lat: top.lat, lon: top.lon }
-    nextTick(() => {
-      feedbackMapRef.value?.flyTo?.({ center: [top.lon, top.lat], zoom: 10, duration: 350 })
+  const d = event?.detail || event
+  const lat = d?.lat || d?.center?.lat || 0
+  const lon = d?.lon || d?.center?.lng || 0
+  if (!lat && !lon) return
+  try {
+    await fetch(`/api/tasks/${task.value.task_id}/feedback`, {
+      method: 'POST',
+      body: new URLSearchParams({
+        satisfaction: '1',
+        correct_lat: String(lat),
+        correct_lon: String(lon),
+      }),
     })
+    fbToast.value = `已记录纠正 (${lat.toFixed(3)}, ${lon.toFixed(3)})，可再次双击重新选择`
+  } catch {
+    fbToast.value = '纠正提交失败，请重试'
   }
-  if (top) {
-  
-  }
-}
-
-async function submitFeedbackPick() {
-  if (!task.value || !fbPick.value) return
-  await fetch(`/api/tasks/${task.value.task_id}/feedback`, {
-    method: 'POST',
-    body: new URLSearchParams({
-      satisfaction: '1',
-      correct_lat: String(fbPick.value.lat || ''),
-      correct_lon: String(fbPick.value.lon || '')
-    })
-  })
-  fbSubmitted.value = true
+  clearTimeout(fbToastTimer)
+  fbToastTimer = setTimeout(() => { fbToast.value = '' }, 5000)
 }
 
 // 准确度短标签：去掉括号及内容，只留"城市级/国家级"等主标签
@@ -229,7 +209,6 @@ onUnmounted(() => {
 
       <!-- 用户反馈 -->
       
-      <div v-if="fbSubmitted && fbBad" class="card fb-thanks">已记录，感谢纠正 ✓</div>
 
       <!-- EXIF GPS 参考信息（已移除"直接定位"：仅供对比，定位基于图像分析） -->
       <div v-if="task.gps" class="card">
@@ -249,7 +228,8 @@ onUnmounted(() => {
 
         <!-- 地图（全宽） -->
         <div class="card map-card">
-          <MapPanel :candidates="task.candidates" :focus-candidate="focusCandidate" />
+          <MapPanel :candidates="task.candidates" :focus-candidate="focusCandidate"
+                    :clickable="true" @map-click="onMapPick" />
           <div v-if="hasCountryCentroid" class="country-note">
             ◇ <b>国家级示意</b>：黄圈表示真实位置可能在此国家范围内，红点为该国首都城市（示意）。
           </div>
@@ -312,20 +292,8 @@ onUnmounted(() => {
 
       </div>
     </div>
-    <!-- 反馈区：结果页最底部 -->
-    <div v-if="task.candidates && task.candidates.length && !fbSubmitted" class="card feedback-card" style="margin-top: 16px">
-      <h3>评价结果</h3>
-      <div class="fb-actions">
-        <button class="fb-btn fb-good" @click="submitFeedbackGood">正确</button>
-        <button class="fb-btn fb-bad" @click="onBadClick">不对，点这里纠正</button>
-      </div>
-      <div v-show="fbBad" class="fb-map-pick">
-        <p style="font-size:13px;color:#6b7280;margin:6px 0">点击地图上的正确位置</p>
-        <MapPanel ref="feedbackMapRef" :candidates="[]" :center="fbPick ? [fbPick.lon, fbPick.lat] : null" :focus-candidate="fbPick" :clickable="true" @map-click="onMapPick" />
-        <button class="fb-btn fb-submit" @click="submitFeedbackPick" :disabled="!fbPick">提交纠正</button>
-      </div>
-    </div>
-    <div v-if="fbSubmitted" class="card" style="text-align:center;color:var(--accent);padding:16px">已记录，感谢反馈</div>
+    <!-- 纠错提示：双击地图选点后显示（可反复双击覆盖） -->
+    <div v-if="fbToast" class="fb-toast">{{ fbToast }}</div>
 
   </div>
 </template>
@@ -368,7 +336,12 @@ onUnmounted(() => {
 .reason-location { font-size: 14px; margin-bottom: 2px; }
 .reason-score { font-size: 12px; color: var(--text-muted); }
 .reason-evidence { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
-.feedback-card h3 { margin-bottom: 10px; }
+.fb-toast {
+  position: sticky; bottom: 16px; z-index: 20;
+  margin-top: 16px; padding: 12px 16px; text-align: center;
+  background: var(--accent-soft); color: var(--accent-text);
+  border-radius: 10px; font-size: 13px; font-weight: 600;
+}
 .fb-stars { display: flex; gap: 8px; }
 .fb-star { font-size: 28px; background: none; border: none; cursor: pointer; opacity: 0.4; transition: opacity 0.15s; padding: 2px; }
 .fb-star.active { opacity: 1; transform: scale(1.1); }
@@ -439,7 +412,12 @@ onUnmounted(() => {
 .card + .card { margin-top: 16px; }
 
 
-.feedback-card h3 { margin-bottom: 10px; }
+.fb-toast {
+  position: sticky; bottom: 16px; z-index: 20;
+  margin-top: 16px; padding: 12px 16px; text-align: center;
+  background: var(--accent-soft); color: var(--accent-text);
+  border-radius: 10px; font-size: 13px; font-weight: 600;
+}
 .fb-actions { display: flex; gap: 12px; justify-content: center; padding: 8px 0; }
 .fb-btn { padding: 10px 28px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--bg-card);
   cursor: pointer; font-size: 15px; font-weight: 600; transition: all 0.15s; }

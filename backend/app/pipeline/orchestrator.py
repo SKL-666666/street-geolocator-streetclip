@@ -216,12 +216,12 @@ class Orchestrator:
                        (TaskStatus.SUCCEEDED, TaskStatus.FAILED) for s in states):
                     break
                 # 占位任务进度：完成数/总数（前端轮询 meta 或用 stage）
-                done_n = sum(1 for s in states if s is not None and
-                             s.status in (TaskStatus.SUCCEEDED, TaskStatus.FAILED))
+                # 平滑进度: 各子任务当前 stage 进度的均值(子任务按 10→40→70→100 递进)
+                prog = [s.progress for s in states if s is not None]
                 ph = self.store.get(fid)
-                if ph:
-                    ph.progress = int(done_n / max(1, len(ids)) * 100)
-                    ph.message = f"融合分析中 {done_n}/{len(ids)}"
+                if ph and prog:
+                    ph.progress = int(sum(prog) / len(ids))
+                    ph.message = f"融合分析中 {ph.progress}%"
                     self.store.save(ph)
                 await asyncio.sleep(0.5)
             done = [s for s in (self.store.get(i) for i in ids)
@@ -308,10 +308,10 @@ class Orchestrator:
         # 融合国家 Top3（归一到 0~1：累加和 / 图数）
         n = len(results)
         ranked_ctry = sorted(ctry_acc.items(), key=lambda x: -x[1])
-        fused_country = [(c, min(1.0, s / n)) for c, s in ranked_ctry[:3]]
+        fused_country = [(c, min(0.95, (s / n) * 0.45)) for c, s in ranked_ctry[:3]]
         # 融合城市 Top3
         ranked_city = sorted(city_acc.items(), key=lambda x: -x[1])
-        fused_city = [(k, min(1.0, s / n)) for k, s in ranked_city[:3]]
+        fused_city = [(k, min(0.95, (s / n) * 0.45)) for k, s in ranked_city[:3]]
 
         # 场景：取首个成功图的 scene，替换假设为融合版
         scene = None
@@ -345,7 +345,7 @@ class Orchestrator:
         fused_cands = []
         for k, cand in group.items():
             s = city_score.get(k) or ctry_score.get(k[0]) or cand.score
-            cand.score = round(min(1.0, max(0.0, s)), 4)   # 防虚高: 永在[0,1]
+            cand.score = round(min(0.95, max(0.0, s * 0.45)), 4)   # 标定到~40%量级, 上限95%
             cand.evidence = [f"多图融合×{n}"] + list(cand.evidence)[:4]
             fused_cands.append(cand)
         fused_cands.sort(key=lambda c: -c.score)
@@ -677,11 +677,15 @@ class Orchestrator:
                             fused[c] = fused.get(c, 0.0) + \
                                 settings.retrieval_alpha * v / r_max
                     ranked = sorted(fused.items(), key=lambda x: -x[1])
-                    top = [{"label": c, "prob": round(s, 4), "index": i}
+                    # 置信度标定: 归一分top恒为1.0(=100%虚高) → ×0.4 映射到典型~40%
+                    top = [{"label": c, "prob": round(min(0.95, s * 0.4), 4), "index": i}
                            for i, (c, s) in enumerate(ranked[:3])]
                     result.meta = {**result.meta, "retrieval_fused": True}
             if top is None:
                 top = await asyncio.to_thread(classify_countries_feat, feat, 3)
+                # 标定: CLIP原始相似度0.1~0.3 → ×1.5 映射到典型30~50%
+                for t in top:
+                    t["prob"] = round(min(0.95, t["prob"] * 1.5), 4)
 
             # ---- Step8 国家级置信分诊 ----
             # national_engine="local"(纯本地): 无论置信度都信 StreetCLIP, 零 API。
@@ -704,7 +708,8 @@ class Orchestrator:
                         vc_canon = _AL.get(vc, vc)
                         fused[vc_canon] = fused.get(vc_canon, 0.0) + settings.vlm_alpha
                         ranked = sorted(fused.items(), key=lambda x: -x[1])
-                        top = [{"label": c, "prob": round(s, 4), "index": i}
+                        # 同上: 归一分 ×0.4 标定到 ~40% 量级
+                        top = [{"label": c, "prob": round(min(0.95, s * 0.4), 4), "index": i}
                                for i, (c, s) in enumerate(ranked[:3])]
                         vlm_used = True
                         result.meta = {**result.meta, "vlm_recheck": True,
@@ -725,7 +730,7 @@ class Orchestrator:
                             break
             # Top1/Top2 分差 → 置信度标注（0.04 阈值与 2026-10 A/B 评测一致；
             # 换prompt复核实测无效已废弃，此标注仅供 UI 提示"候选接近"）
-            close = len(top) >= 2 and top[0]["prob"] - top[1]["prob"] < 0.04
+            close = len(top) >= 2 and top[0]["prob"] - top[1]["prob"] < 0.07
             # 第二级引擎（config 切换）：
             #   llm（推荐）——Top3 国家 + 原图发给云端 LLM，一次定 3 城市（未必是首都），
             #     套用纯云端坐标逻辑落点（城市表优先 → LLM 估算坐标校正 → 兜底）；

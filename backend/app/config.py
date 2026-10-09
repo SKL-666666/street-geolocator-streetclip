@@ -87,8 +87,9 @@ class Settings(BaseSettings):
     # national_engine: "local"=纯本地(无论置信度都信StreetCLIP, 零API) /
     #                  "adaptive"=高置信(>阈值)信SC, 低置信(<阈值)调VLM复核国家
     national_engine: str = "local"
-    # 分诊阈值: StreetCLIP Top1-Top2 分差, 大于此值视为高置信(直接信SC)
-    national_margin_threshold: float = 0.04
+    # 分诊阈值: Top1-Top2 分差(标定后分数), 大于此值=高置信直接信SC。
+    # 分数已标定到~40%量级(×0.4/×1.5), 原始0.04等效于标定后约0.08
+    national_margin_threshold: float = 0.08
     # 低置信时复核用的云端VLM (OpenAI兼容): 小米 MiMo-v2.6-flash (实测国家级70.8%)
     # nothinking=True 关闭思考链(省token/省时, 实测 enable_thinking:false 生效)
     vlm_provider: str = "openai"

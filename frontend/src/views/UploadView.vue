@@ -24,7 +24,7 @@ const mode = ref('local')  // 仅本地模式（本地判国家 + 城市引擎�
 const scope = ref(['world', 'no-cn', 'cn'].includes(prefs.scope) ? prefs.scope : 'world')
 // 上传模式：batch=串行批量（无上限，逐张各自出结果）/ fusion=同地点融合（2~3张并出一个结果）
 const upMode = ref(['batch', 'fusion'].includes(prefs.upMode) ? prefs.upMode : 'batch')
-const progress = ref({ done: 0, total: 0 })
+const progress = ref({ done: 0, total: 0, pct: 0 })
 
 const canSubmit = computed(() => files.value.length && !uploading.value && !api.warmingUp &&
   !(api.needsSetup && api.localCityEngine === 'llm') &&
@@ -97,7 +97,7 @@ async function submit() {
   if (!canSubmit.value) return
   uploading.value = true
   error.value = ''
-  progress.value = { done: 0, total: files.value.length }
+  progress.value = { done: 0, total: files.value.length, pct: 0 }
   try {
     if (upMode.value === 'fusion') {
       // 同地点融合：后端立即返回占位id(后台并行分析+聚合)，前端轮询直到完成
@@ -105,12 +105,11 @@ async function submit() {
       // 轮询融合任务进度（占位任务 stage=fusing，完成变 succeeded）
       const t0 = Date.now()
       while (true) {
-        await new Promise((r) => setTimeout(r, 800))
+        await new Promise((r) => setTimeout(r, 700))
         const t = await fetchTask(fid).catch(() => null)
-        if (!t) continue
-        progress.value.done = Math.round((t.progress || 0) / 100 * files.value.length)
-        if (['succeeded', 'failed'].includes(t.status)) {
-          progress.value.done = files.value.length
+        if (t) progress.value.pct = Math.min(99, t.progress || 0)
+        if (t && ['succeeded', 'failed'].includes(t.status)) {
+          progress.value.pct = 100
           break
         }
         if (Date.now() - t0 > 200000) break   // 兜底200s
@@ -126,6 +125,7 @@ async function submit() {
           error.value = `${f.name}: ${e.message}`
         }
         progress.value.done++
+        progress.value.pct = Math.round(progress.value.done / files.value.length * 100)
       }
       if (ids.length) emit('analyzed', ids)
     }
@@ -246,11 +246,10 @@ async function submit() {
                        : (files.length > 1 ? `开始分析 ${files.length} 张` : '开始分析') }}
         </button>
       </div>
-      <!-- 进度条：上传/融合进行中显示动画 -->
+      <!-- 进度条：真实百分比（融合=后端子任务stage均值，批量=提交进度） -->
       <div v-if="uploading" class="progress-track">
-        <div class="progress-fill" :class="{ indeterminate: upMode === 'fusion' }"
-             :style="upMode === 'fusion' ? {} : { width: (progress.total ? (progress.done / progress.total * 100) : 0) + '%' }">
-        </div>
+        <div class="progress-fill" :style="{ width: progress.pct + '%' }"></div>
+        <span class="progress-num">{{ progress.pct }}%</span>
       </div>
       <!-- 预热中：本地模型加载，禁止上传 -->
       <div v-if="api.warmingUp" class="no-key-note">
@@ -375,18 +374,17 @@ async function submit() {
 }
 .actions { display: flex; justify-content: center; }
 .progress-track {
-  margin-top: 10px; height: 6px; border-radius: 3px;
-  background: var(--bg-subtle); overflow: hidden;
+  margin-top: 12px; height: 6px; border-radius: 3px;
+  background: var(--bg-subtle); overflow: visible;
 }
 .progress-fill {
   height: 100%; background: var(--primary); border-radius: 3px;
   transition: width 0.3s ease; width: 0;
 }
-.progress-fill.indeterminate {
-  width: 40%; animation: indet 1.2s ease-in-out infinite;
-}
-@keyframes indet {
-  0% { margin-left: -40%; } 100% { margin-left: 100%; }
+.progress-track { position: relative; }
+.progress-num {
+  position: absolute; right: 0; top: 8px;
+  font-size: 11px; color: var(--text-muted);
 }
 .no-key-note {
   margin-top: 12px;

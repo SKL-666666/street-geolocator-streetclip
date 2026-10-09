@@ -247,16 +247,14 @@ onMounted(() => {
   })
   map.addControl(new maplibregl.NavigationControl(), 'top-right')
     map.on('load', renderMarkers)
-    map.on('click', (e) => {
-      if (props.clickable) {
-        // 清除旧图钉
-        if (pickMarker) pickMarker.remove()
-        // 在点击位置放新图钉
-        pickMarker = new maplibregl.Marker({ color: '#dc2626' })
-          .setLngLat([e.lngLat.lng, e.lngLat.lat])
-          .addTo(map)
-        emit('map-click', { lat: e.lngLat.lat, lon: e.lngLat.lng })
-      }
+    // 双击地图 → 纠错选点（单击不触发，避免与拖动/查看冲突；可反复双击重新选择）
+    map.on('dblclick', (e) => {
+      if (!props.clickable) return
+      if (pickMarker) pickMarker.remove()
+      pickMarker = new maplibregl.Marker({ color: '#4f83e0' })
+        .setLngLat([e.lngLat.lng, e.lngLat.lat])
+        .addTo(map)
+      emit('map-click', { lat: e.lngLat.lat, lon: e.lngLat.lng })
     })
   // Esri 瓦片加载失败累计 → 自动降级腾讯（快速稳定双保险）
   map.on('error', (e) => {
