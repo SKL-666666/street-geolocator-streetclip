@@ -182,33 +182,72 @@ class Orchestrator:
 
     async def fusion_submit(self, images: list[tuple[bytes, str]],
                             mode: str = "local", scope: str = "world") -> str:
-        """同地点多图并行分析 → 等待全部完成 → 聚合为单一融合结果。
+        """同地点多图并行分析 → 后台聚合为单一融合结果。
 
+        立即返回融合占位任务 id（stage=fusing）：
+        - 前端轮询该 id，其 meta.fusion_of 提供子任务 id，可计算真实进度
+        - 后台 task 等全部子任务完成 → _merge_results 覆写占位任务
         images: [(image_bytes, filename), ...]，上限 3 张（路由层校验）。
-        返回融合结果 task_id，可直接轮询 /api/tasks/{id}。
         """
-        # ① 并行提交各图（各自独立走完整管线）
+        # ① 并行提交子图
         ids = [self.submit(b, name, mode=mode, scope=scope)
                for b, name in images]
-        # ② 等待全部子任务完成（上限 180s，超时按已完成的聚合）
-        deadline = time.monotonic() + 180
-        while time.monotonic() < deadline:
-            states = [self.store.get(i) for i in ids]
-            if all(s is not None and s.status in
-                   (TaskStatus.SUCCEEDED, TaskStatus.FAILED) for s in states):
-                break
-            await asyncio.sleep(0.5)
-        done = [s for s in (self.store.get(i) for i in ids)
-                if s is not None and s.status == TaskStatus.SUCCEEDED and s.candidates]
-        if not done:
-            # 全部失败 → 造一个失败态合成任务
-            fid = uuid.uuid4().hex[:12]
-            fail = TaskResult(task_id=fid, filename="fusion", status=TaskStatus.FAILED,
-                              stage="failed", mode=mode, meta={"scope": scope,
-                                                               "fusion_of": ids},
-                              error="融合失败：所有子图分析均未成功")
-            self.store.save(fail)
-            return fid
+        # ② 创建融合占位任务（立即可轮询，进度=子任务完成数/总数）
+        fid = uuid.uuid4().hex[:12]
+        placeholder = TaskResult(
+            task_id=fid, filename=f"fusion×{len(ids)}",
+            status=TaskStatus.RUNNING, stage="fusing", mode=mode,
+            meta={"scope": scope, "fusion_of": ids,
+                  "progress_note": "同地点多图融合分析中"})
+        self.store.save(placeholder)
+        # ③ 后台等待并聚合
+        task = asyncio.create_task(self._fusion_finalize(fid, ids, mode, scope))
+        self._tasks[fid] = task
+        return fid
+
+    async def _fusion_finalize(self, fid: str, ids: list[str],
+                               mode: str, scope: str) -> None:
+        """等待子任务完成 → 聚合 → 覆写融合占位任务。"""
+        try:
+            deadline = time.monotonic() + 180
+            while time.monotonic() < deadline:
+                states = [self.store.get(i) for i in ids]
+                if all(s is not None and s.status in
+                       (TaskStatus.SUCCEEDED, TaskStatus.FAILED) for s in states):
+                    break
+                # 占位任务进度：完成数/总数（前端轮询 meta 或用 stage）
+                done_n = sum(1 for s in states if s is not None and
+                             s.status in (TaskStatus.SUCCEEDED, TaskStatus.FAILED))
+                ph = self.store.get(fid)
+                if ph:
+                    ph.progress = int(done_n / max(1, len(ids)) * 100)
+                    ph.message = f"融合分析中 {done_n}/{len(ids)}"
+                    self.store.save(ph)
+                await asyncio.sleep(0.5)
+            done = [s for s in (self.store.get(i) for i in ids)
+                    if s is not None and s.status == TaskStatus.SUCCEEDED and s.candidates]
+            if not done:
+                ph = self.store.get(fid)
+                if ph:
+                    ph.status = TaskStatus.FAILED
+                    ph.stage = "failed"
+                    ph.error = "融合失败：所有子图分析均未成功"
+                    self.store.save(ph)
+                return
+            merged = self._merge_results(done)
+            merged.task_id = fid          # 覆写占位 id，前端轮询同一 id 拿到融合结果
+            merged.meta = {**merged.meta, "scope": scope, "fusion_of": ids,
+                           "fusion_count": len(done)}
+            self.store.save(merged)
+        except Exception as e:  # noqa: BLE001
+            ph = self.store.get(fid)
+            if ph:
+                ph.status = TaskStatus.FAILED
+                ph.stage = "failed"
+                ph.error = f"{type(e).__name__}: {e}"
+                self.store.save(ph)
+        finally:
+            self._tasks.pop(fid, None)
         merged = self._merge_results(done)
         merged.meta = {**merged.meta, "scope": scope, "fusion_of": ids,
                        "fusion_count": len(done)}
@@ -311,7 +350,8 @@ class Orchestrator:
         fused_cands.sort(key=lambda c: -c.score)
         for i, c in enumerate(fused_cands, 1):
             c.rank = i
-        base.candidates = fused_cands[:6]
+        base.candidates = fused_cands[:3]   # 与单图一致只展示3个地点
+        base.progress = 100
         base.elapsed_ms = max(r.elapsed_ms for r in results)
         if first.gps:
             base.gps = first.gps

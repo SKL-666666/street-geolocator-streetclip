@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { uploadImage, uploadFusion, api, savePrefs as savePrefsApi } from '../api'
+import { uploadImage, uploadFusion, fetchTask, api, savePrefs as savePrefsApi } from '../api'
 
 const emit = defineEmits(['analyzed'])
 
@@ -100,9 +100,21 @@ async function submit() {
   progress.value = { done: 0, total: files.value.length }
   try {
     if (upMode.value === 'fusion') {
-      // 同地点融合：后端并行分析 2~3 张并聚合为单一结果
+      // 同地点融合：后端立即返回占位id(后台并行分析+聚合)，前端轮询直到完成
       const fid = await uploadFusion(files.value, mode.value, scope.value)
-      progress.value.done = files.value.length
+      // 轮询融合任务进度（占位任务 stage=fusing，完成变 succeeded）
+      const t0 = Date.now()
+      while (true) {
+        await new Promise((r) => setTimeout(r, 800))
+        const t = await fetchTask(fid).catch(() => null)
+        if (!t) continue
+        progress.value.done = Math.round((t.progress || 0) / 100 * files.value.length)
+        if (['succeeded', 'failed'].includes(t.status)) {
+          progress.value.done = files.value.length
+          break
+        }
+        if (Date.now() - t0 > 200000) break   // 兜底200s
+      }
       emit('analyzed', [fid])   // 单 id → ResultView 展示融合结果
     } else {
       // 串行批量：逐张提交（无上限），各自独立出结果
@@ -230,8 +242,15 @@ async function submit() {
 
       <div class="actions">
         <button class="btn" :disabled="!canSubmit" @click="submit">
-          {{ uploading ? `上传中 ${progress.done}/${progress.total}…` : `开始分析${files.length > 1 ? `（${files.length} 张）` : ''}` }}
+          {{ uploading ? (upMode === 'fusion' ? '融合分析中…' : `已提交 ${progress.done}/${progress.total}`)
+                       : (files.length > 1 ? `开始分析 ${files.length} 张` : '开始分析') }}
         </button>
+      </div>
+      <!-- 进度条：上传/融合进行中显示动画 -->
+      <div v-if="uploading" class="progress-track">
+        <div class="progress-fill" :class="{ indeterminate: upMode === 'fusion' }"
+             :style="upMode === 'fusion' ? {} : { width: (progress.total ? (progress.done / progress.total * 100) : 0) + '%' }">
+        </div>
       </div>
       <!-- 预热中：本地模型加载，禁止上传 -->
       <div v-if="api.warmingUp" class="no-key-note">
@@ -355,6 +374,20 @@ async function submit() {
   font-size: 11px; cursor: pointer;
 }
 .actions { display: flex; justify-content: center; }
+.progress-track {
+  margin-top: 10px; height: 6px; border-radius: 3px;
+  background: var(--bg-subtle); overflow: hidden;
+}
+.progress-fill {
+  height: 100%; background: var(--primary); border-radius: 3px;
+  transition: width 0.3s ease; width: 0;
+}
+.progress-fill.indeterminate {
+  width: 40%; animation: indet 1.2s ease-in-out infinite;
+}
+@keyframes indet {
+  0% { margin-left: -40%; } 100% { margin-left: 100%; }
+}
 .no-key-note {
   margin-top: 12px;
   background: var(--danger-soft); color: var(--danger-text);

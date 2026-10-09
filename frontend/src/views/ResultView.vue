@@ -110,7 +110,7 @@ function onBadClick() {
   if (top) {
     fbPick.value = { lat: top.lat, lon: top.lon }
     nextTick(() => {
-      feedbackMapRef.value?.flyTo?.({ center: [top.lon, top.lat], zoom: 10 })
+      feedbackMapRef.value?.flyTo?.({ center: [top.lon, top.lat], zoom: 10, duration: 350 })
     })
   }
   if (top) {

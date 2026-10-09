@@ -2,24 +2,24 @@
 
 /* ==== 统一色彩变量（亮色为默认，html.dark 覆盖为深色）==== */
 :root {
-  --bg: #f4f6f9;
+  --bg: #eceef2;            /* 更灰的浅背景 */
   --bg-card: #ffffff;
   --bg-subtle: #f9fafb;      /* 次级块（引擎选项等） */
   --bg-hover: #eff6ff;
-  --text: #1f2937;
+  --text: #242a33;
   --text-muted: #6b7280;
   --text-faint: #9ca3af;
   --border: #e5e7eb;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
+  --primary: #4f83e0;       /* 提亮蓝(不那么深) */
+  --primary-hover: #3b6fd4;
   --primary-soft: #eff6ff;
   --primary-faint: #93c5fd;
-  --accent: #0891b2;         /* 青-冷色 选中 */
+  --accent: #17a2b8;        /* 青-冷色(提亮) 选中 */
   --accent-soft: #ecfeff;
-  --accent-text: #155e75;
-  --danger: #dc2626;
+  --accent-text: #0e7490;
+  --danger: #e8615e;        /* 提亮红(不刺眼) */
   --danger-soft: #fef2f2;
-  --danger-text: #991b1b;
+  --danger-text: #b3453f;
   --shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   --badge-bg: #e5e7eb;
   --badge-text: #374151;

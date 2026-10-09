@@ -131,7 +131,7 @@ function flyToCandidate(cand) {
   const [lon, lat] = display(cand.lon, cand.lat)
   // 缩放级别（收敛版）：国家级示意 5（国家全览），其余 6（城市周边，不再钻到街道级）
   const zoom = cand.source === 'country' ? 5 : 6
-  map.flyTo({ center: [lon, lat], zoom, essential: true })
+  map.easeTo({ center: [lon, lat], zoom, duration: 350, essential: true })
   // 按坐标找到对应 marker 打开弹窗（不依赖下标，杜绝错位）
   const target = markers.find((m) => m && m.getLngLat() &&
     Math.abs(m.getLngLat().lng - lon) < 0.01 && Math.abs(m.getLngLat().lat - lat) < 0.01)
@@ -142,7 +142,7 @@ function flyToCenter() {
   if (!map) return
   const [lon, lat] = props.center || (props.candidates[0] ? display(props.candidates[0].lon, props.candidates[0].lat) : null)
   if (lon == null || lat == null) return
-  map.flyTo({ center: [lon, lat], zoom: 6 })
+  map.easeTo({ center: [lon, lat], zoom: 6, duration: 350 })
 }
 
 function renderMarkers() {
