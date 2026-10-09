@@ -217,7 +217,7 @@ function renderCircles() {
       source: 'country-circles',
       paint: {
         'circle-radius': radiusExpr,
-        'circle-color': '#f59e0b',
+        'circle-color': '#22d3ee',
         'circle-opacity': 0.15,
         'circle-stroke-width': 1.5,
         'circle-stroke-color': '#d97706',

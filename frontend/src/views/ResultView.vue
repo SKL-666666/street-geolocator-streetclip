@@ -325,7 +325,7 @@ onUnmounted(() => {
         <button class="fb-btn fb-submit" @click="submitFeedbackPick" :disabled="!fbPick">提交纠正</button>
       </div>
     </div>
-    <div v-if="fbSubmitted" class="card" style="text-align:center;color:#059669;padding:16px">已记录，感谢反馈</div>
+    <div v-if="fbSubmitted" class="card" style="text-align:center;color:var(--accent);padding:16px">已记录，感谢反馈</div>
 
   </div>
 </template>
@@ -367,7 +367,7 @@ onUnmounted(() => {
 .reason-content { flex: 1; }
 .reason-location { font-size: 14px; margin-bottom: 2px; }
 .reason-score { font-size: 12px; color: var(--text-muted); }
-.reason-evidence { font-size: 12px; color: #4b5563; margin-top: 2px; line-height: 1.4; }
+.reason-evidence { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
 .feedback-card h3 { margin-bottom: 10px; }
 .fb-stars { display: flex; gap: 8px; }
 .fb-star { font-size: 28px; background: none; border: none; cursor: pointer; opacity: 0.4; transition: opacity 0.15s; padding: 2px; }
@@ -383,7 +383,7 @@ onUnmounted(() => {
 .fb-correction-title { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
 .fb-thanks { text-align: center; color: var(--accent-text); font-size: 15px; padding: 16px; }
 .exact-banner {
-  background: #d1fae5; color: var(--accent-text);
+  background: var(--accent-soft); color: var(--accent-text);
   padding: 10px 14px; border-radius: 8px; margin-bottom: 12px;
 }
 .exif-note {
@@ -423,11 +423,11 @@ onUnmounted(() => {
 .bar-country { font-weight: 700; font-size: 14px; }
 .bar-city { font-size: 14px; }
 .zh-tag { font-size: 12px; color: var(--text-muted); margin-left: 4px; }
-.bar-prob { font-weight: 700; color: #b45309; text-align: right; }
-.bar-hint { font-size: 11px; color: #b45309; }
+.bar-prob { font-weight: 700; color: var(--primary); text-align: right; }
+.bar-hint { font-size: 11px; color: var(--primary); }
 
 .empty-result { padding: 6px 2px 10px; }
-.empty-title { font-weight: 700; font-size: 15px; color: #b91c1c; margin-bottom: 6px; }
+.empty-title { font-weight: 700; font-size: 15px; color: var(--danger); margin-bottom: 6px; }
 .empty-result .muted { margin-top: 3px; }
 .timeout-note {
   margin-top: 10px; padding: 8px 12px;

@@ -259,8 +259,8 @@ async function submit() {
 .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 14px 0 4px; }
 .mode-card {
   padding: 10px 12px;
-  border: 2px solid var(--border);
-  border-radius: 10px;
+  border: none;
+  border-radius: 8px;
   background: var(--bg-card);
   cursor: pointer;
   text-align: left;
@@ -274,16 +274,18 @@ async function submit() {
 .scope-card {
   flex: 1;
   padding: 10px 12px;
-  border: 2px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-card);
+  border: none;
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  color: var(--text);
   cursor: pointer;
   font-weight: 600;
   font-size: 14px;
-  transition: border-color 0.15s, background 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
-.scope-card.active { border-color: var(--accent); background: var(--accent-soft); }
-.scope-card.china.active { border-color: var(--danger); background: var(--danger-soft); }
+.scope-card:hover { background: var(--bg-hover); }
+.scope-card.active { background: var(--accent); color: #001018; }
+.scope-card.china.active { background: var(--danger); color: #fff; }
 .scope-note { font-size: 12px; color: var(--accent-text); background: var(--accent-soft); border-radius: 8px; padding: 6px 10px; margin-bottom: 4px; }
 .china-note { color: var(--danger-text); background: var(--danger-soft); }
 .enhance-toggles { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 4px; }
@@ -294,8 +296,8 @@ async function submit() {
   gap: 10px;
   margin: 10px 0 4px;
   padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: none;
+  border-radius: 8px;
   background: var(--bg-subtle);
   cursor: pointer;
 }
@@ -307,8 +309,8 @@ async function submit() {
 .city-engine {
   margin: 10px 0 4px;
   padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: none;
+  border-radius: 8px;
   background: var(--bg-subtle);
   display: flex;
   flex-direction: column;
@@ -318,16 +320,16 @@ async function submit() {
 .city-engine .ce-opts { display: flex; gap: 10px; flex-wrap: wrap; }
 .city-engine .ce-opts label {
   display: flex; align-items: center; gap: 6px;
-  font-size: 12.5px; padding: 5px 10px; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--bg-card); cursor: pointer;
+  font-size: 12.5px; padding: 6px 12px; border-radius: 8px;
+  border: none; background: var(--bg-card); color: var(--text); cursor: pointer;
 }
-.city-engine .ce-opts label.on { border-color: var(--primary); background: var(--primary-soft); }
+.city-engine .ce-opts label.on { background: var(--primary); color: #fff; }
 .city-engine .ce-opts input { accent-color: var(--primary); }
 .city-engine small { font-size: 11.5px; color: var(--text-muted); }
 
 .dropzone {
   margin: 16px 0;
-  border: 2px dashed var(--border);
+  border: 1.5px dashed var(--border);
   border-radius: 12px;
   overflow: hidden;
   transition: border-color 0.15s, background 0.15s;

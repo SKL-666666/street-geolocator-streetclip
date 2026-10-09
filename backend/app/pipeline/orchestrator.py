@@ -231,22 +231,39 @@ class Orchestrator:
                           mode=first.mode, has_image=False,
                           confidence_level=first.confidence_level)
 
-        # 国家置信累加
+        # 国家/城市置信累加
+        # 注意：local 模式不走 LLM，scene.country/city_hypotheses 为空——
+        # 置信信号在 candidates(rank/score/country/city) 里，两路都采。
         ctry_acc: dict[str, float] = {}
         ctry_zh: dict[str, str] = {}
+        city_acc: dict[tuple[str, str], float] = {}
+        city_meta: dict[tuple[str, str], CityHypothesis] = {}
         for r in results:
             for h in (r.scene.country_hypotheses if r.scene else []) or []:
                 ctry_acc[h.country] = ctry_acc.get(h.country, 0.0) + h.confidence
                 if h.country_zh:
                     ctry_zh[h.country] = h.country_zh
-        # 城市置信累加
-        city_acc: dict[tuple[str, str], float] = {}
-        city_meta: dict[tuple[str, str], CityHypothesis] = {}
-        for r in results:
             for h in (r.scene.city_hypotheses if r.scene else []) or []:
                 k = (h.country, h.city)
                 city_acc[k] = city_acc.get(k, 0.0) + h.confidence
                 city_meta[k] = h
+            # candidates 兜底聚合（local 模式主来源）
+            for c in r.candidates:
+                if not c.country:
+                    continue
+                # rank 越小分越高：把 score 与 1/rank 结合，保证 Top1 权重大
+                w = max(c.score, 0.01) + (1.0 / c.rank) * 0.5
+                ctry_acc[c.country] = ctry_acc.get(c.country, 0.0) + w
+                if c.country_zh:
+                    ctry_zh[c.country] = c.country_zh
+                if c.city:
+                    k = (c.country, c.city)
+                    city_acc[k] = city_acc.get(k, 0.0) + w
+                    if k not in city_meta:
+                        city_meta[k] = CityHypothesis(
+                            city=c.city, country=c.country,
+                            country_zh=c.country_zh, lat=c.lat, lon=c.lon,
+                            confidence=round(min(1.0, w), 4))
 
         # 融合国家 Top3（归一到 0~1：累加和 / 图数）
         n = len(results)
@@ -260,18 +277,20 @@ class Orchestrator:
         scene = None
         if first.scene:
             scene = first.scene.model_copy(deep=True)
-            scene.country_hypotheses = [
-                CountryHypothesis(country=c, country_zh=ctry_zh.get(c, ""),
-                                  confidence=round(s, 4))
-                for c, s in fused_country]
-            scene.city_hypotheses = [
-                CityHypothesis(city=k[1], country=k[0],
-                               country_zh=ctry_zh.get(k[0], ""),
-                               lat=city_meta[k].lat, lon=city_meta[k].lon,
-                               confidence=round(s, 4))
-                for k, s in fused_city if k in city_meta]
-            scene.summary = (f"多图融合({n}张)：国家Top1={fused_country[0][0] if fused_country else '?'}"
-                             f"，城市Top1={fused_city[0][1] if fused_city else '?'}")
+        else:
+            scene = SceneAnalysis(is_street_view=True, scene_type="street")
+        scene.country_hypotheses = [
+            CountryHypothesis(country=c, country_zh=ctry_zh.get(c, ""),
+                              confidence=round(s, 4))
+            for c, s in fused_country]
+        scene.city_hypotheses = [
+            CityHypothesis(city=k[1], country=k[0],
+                           country_zh=ctry_zh.get(k[0], ""),
+                           lat=city_meta[k].lat, lon=city_meta[k].lon,
+                           confidence=round(s, 4))
+            for k, s in fused_city if k in city_meta]
+        scene.summary = (f"多图融合({n}张)：国家Top1={fused_country[0][0] if fused_country else '?'}"
+                         f"，城市Top1={fused_city[0][0][1] if fused_city else '?'}")
         base.scene = scene
 
         # 候选：按 (country, city) 去重聚合，score 用融合国家分(有城市用城市分)
