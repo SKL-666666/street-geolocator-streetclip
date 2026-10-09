@@ -65,7 +65,7 @@ const MIN_STYLE = {
     id: 'base',
     type: 'raster',
     source: 'base',
-    paint: { 'raster-fade-duration': 0, 'raster-opacity': 1 },
+    paint: { 'raster-fade-duration': 0, 'raster-opacity': 1, 'raster-resampling': 'nearest' },
   }],
 }
 
@@ -238,8 +238,12 @@ onMounted(() => {
     center: props.center ? display(props.center[0], props.center[1]) : [116.4, 39.9],
     zoom: 3,
     maxZoom: 18,
-    maxParallelImageRequests: 12,
+    maxParallelImageRequests: 24,   // 滚轮缩放时瓦片并发, 减少空白
     transformRequest,
+    // 手动滚轮缩放: 细步进+即时响应, 避免默认长动画卡顿
+    zoomDelta: 0.25,
+    wheelZoomPeriod: 30,
+    clickZoom: false,          // 禁双击缩放动画(改由UI控制)
   })
   map.addControl(new maplibregl.NavigationControl(), 'top-right')
     map.on('load', renderMarkers)

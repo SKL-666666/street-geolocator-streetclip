@@ -48,34 +48,22 @@ const error = ref('')
 const notice = ref('')
 
 async function onAdd() {
-  if (!apiKey.value.trim()) {
-    error.value = '请填写 API Key'
-    return
-  }
-  if (!baseUrl.value.trim()) {
-    error.value = '请填写 API 地址（Base URL）'
-    return
-  }
-  if (!model.value.trim()) {
-    error.value = '请填写模型名'
-    return
-  }
+  if (!apiKey.value.trim()) { error.value = '请填写 API Key'; return }
+  if (!baseUrl.value.trim()) { error.value = '请填写 API 地址'; return }
+  if (!model.value.trim()) { error.value = '请填写模型名'; return }
   saving.value = true
   error.value = ''
   notice.value = ''
   try {
     const { configs: list, duplicated } = await addLLMConfig({
-      name: name.value.trim() || `${model.value.trim()}`,
+      name: name.value.trim() || model.value.trim(),
       apiKey: apiKey.value.trim(),
       baseUrl: baseUrl.value.trim(),
       model: model.value.trim(),
     })
     configs.value = list
-    if (duplicated) {
-      notice.value = 'ℹ️ 该配置已存在（相同 Key + 模型 + 地址），已自动切换到它，未重复添加'
-    } else {
-      apiKey.value = ''
-    }
+    notice.value = duplicated ? '该配置已存在，已切换到它' : '已保存并启用'
+    if (!duplicated) apiKey.value = ''
     emit('saved')
   } catch (e) {
     error.value = e.message
@@ -95,120 +83,128 @@ onMounted(refresh)
 
 <template>
   <div class="setup-wrap">
-    <div class="card setup-card">
+    <div class="setup-card">
       <div class="setup-head">
-        <h2>🔑 大模型 API 配置</h2>
-        <button class="btn-ghost" @click="emit('back')">← 返回</button>
+        <h2>API 配置</h2>
+        <button class="btn-ghost" @click="emit('back')">返回</button>
       </div>
 
-      <!-- 已有配置列表 -->
-      <div v-if="configs.length" class="saved-section">
-        <div class="section-title">已有配置（{{ configs.length }}）—— 点击一键切换</div>
-        <div v-for="c in configs" :key="c.id" class="saved-item" :class="{ active: c.active }">
-          <div class="saved-main">
-            <div class="saved-name">
-              {{ c.active ? '✅' : '🔘' }} {{ c.name }}
-              <span v-if="c.active" class="using-tag">使用中</span>
+      <!-- 已有配置 -->
+      <section class="panel">
+        <div class="panel-title">已有配置</div>
+        <div v-if="configs.length" class="cfg-list">
+          <div v-for="c in configs" :key="c.id" class="cfg-item" :class="{ active: c.active }">
+            <div class="cfg-info">
+              <div class="cfg-name">
+                {{ c.name }}
+                <span v-if="c.active" class="using-tag">使用中</span>
+              </div>
+              <div class="cfg-meta">{{ c.model }} · {{ c.masked_key }}<template v-if="c.base_url"> · {{ c.base_url.replace('https://', '').split('/')[0] }}</template></div>
             </div>
-            <div class="saved-meta">
-              {{ c.model || '默认模型' }} · Key {{ c.masked_key }}
-              <span v-if="c.base_url" class="muted"> · {{ c.base_url.replace('https://', '').split('/')[0] }}</span>
-              <span v-if="c.created_at" class="muted"> · {{ fmtTime(c.created_at) }}</span>
+            <div class="cfg-actions">
+              <button v-if="!c.active" class="btn-sm" :disabled="loading" @click="onActivate(c)">切换</button>
+              <button class="btn-sm danger" :disabled="loading" @click="onDelete(c)">删除</button>
             </div>
-          </div>
-          <div class="saved-actions">
-            <button v-if="!c.active" class="btn-sm" :disabled="loading" @click="onActivate(c)">切换</button>
-            <button class="btn-sm danger" :disabled="loading" @click="onDelete(c)">删除</button>
           </div>
         </div>
-      </div>
-      <div v-else class="muted hint">还没有已保存的配置，请在下方添加第一个。</div>
-      <div v-if="opError" class="error">{{ opError }}</div>
+        <div v-else class="muted">暂无配置，请在下方添加。</div>
+        <div v-if="opError" class="error">{{ opError }}</div>
+      </section>
 
-      <hr class="divider" />
+      <!-- 添加配置 -->
+      <section class="panel">
+        <div class="panel-title">添加配置</div>
+        <p class="muted sub">OpenAI 兼容接口，Key 仅存本机。</p>
 
-      <!-- 添加自定义配置 -->
-      <div class="section-title">添加配置（保存后立即使用）</div>
-      <p class="muted">OpenAI 兼容接口：地址 / Key / 模型名。Key 只存本机，按平台直接计费。</p>
+        <div class="field">
+          <label>配置名称<span class="opt">选填</span></label>
+          <input v-model="name" type="text" placeholder="留空则用模型名" />
+        </div>
+        <div class="field">
+          <label>API 地址<span class="req">*</span></label>
+          <input v-model="baseUrl" type="text" placeholder="https://api.example.com/v1" />
+        </div>
+        <div class="field">
+          <label>API Key<span class="req">*</span></label>
+          <input v-model="apiKey" type="password" placeholder="粘贴 API Key" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label>模型名<span class="req">*</span></label>
+          <input v-model="model" type="text" placeholder="视觉模型名" />
+        </div>
 
-      <div class="field">
-        <label>配置名称（可选，便于区分）</label>
-        <input v-model="name" type="text" placeholder="如：我的智谱号 / 备用豆包号（留空自动用模型名）" />
-      </div>
-
-      <div class="field">
-        <label>API 地址（Base URL）<span class="req">*</span></label>
-        <input v-model="baseUrl" type="text" placeholder="如 https://open.bigmodel.cn/api/paas/v4" />
-      </div>
-
-      <div class="field">
-        <label>API Key <span class="req">*</span></label>
-        <input v-model="apiKey" type="password" placeholder="粘贴你的 API Key" autocomplete="off" />
-      </div>
-
-      <div class="field">
-        <label>模型名 <span class="req">*</span></label>
-        <input v-model="model" type="text" placeholder="如 glm-4.6v-flashx / qwen-vl-max（任意视觉模型名）" />
-      </div>
-
-      <div class="actions">
-        <button class="btn" :disabled="saving" @click="onAdd">
-          {{ saving ? '保存中…' : '➕ 保存并添加' }}
+        <button class="btn primary wide" :disabled="saving" @click="onAdd">
+          {{ saving ? '保存中…' : '保存并启用' }}
         </button>
-      </div>
-      <div v-if="error" class="error">{{ error }}</div>
-      <div v-if="notice" class="notice">{{ notice }}</div>
-      <div class="muted hint">
-        提示：任意 OpenAI 兼容的视觉模型接口都可用（智谱/通义/豆包/百度/混元/Kimi/
-        硅基流动/阶跃/零一/OpenRouter 等），Base URL 与模型名请按各平台文档填写。
-      </div>
+        <div v-if="error" class="error">{{ error }}</div>
+        <div v-if="notice" class="notice">{{ notice }}</div>
+        <p class="muted sub">支持智谱、通义、豆包、Kimi、OpenRouter 等 OpenAI 兼容视觉接口。</p>
+      </section>
     </div>
   </div>
 </template>
 
 <style scoped>
 .setup-wrap { display: flex; justify-content: center; }
-.setup-card { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 14px; }
-.setup-head { display: flex; justify-content: space-between; align-items: center; }
-.btn-ghost { background: var(--border); color: var(--text-muted); padding: 6px 12px; font-size: 13px; border: none; border-radius: 8px; cursor: pointer; }
-.btn-ghost:hover { background: var(--border); }
+.setup-card { width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 14px; }
 
-.section-title { font-weight: 700; font-size: 14px; color: var(--text-muted); }
-.divider { border: none; border-top: 1px dashed var(--border); margin: 4px 0; }
+.setup-head {
+  display: flex; justify-content: space-between; align-items: center;
+}
+.setup-head h2 { font-size: 18px; font-weight: 700; color: var(--text); }
+.btn-ghost {
+  background: var(--bg-subtle); color: var(--text-muted); padding: 6px 14px;
+  font-size: 13px; border: none; border-radius: 8px; cursor: pointer;
+}
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text); }
 
-.saved-section { display: flex; flex-direction: column; gap: 8px; }
-.saved-item {
+/* 统一 panel：无边框，靠底色分组 */
+.panel {
+  background: var(--bg-subtle);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.panel-title { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: 0.5px; }
+.sub { font-size: 12px; line-height: 1.6; }
+
+.cfg-list { display: flex; flex-direction: column; gap: 8px; }
+.cfg-item {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border); border-radius: 10px;
-  background: var(--bg-card);
+  padding: 10px 12px; background: var(--bg-card); border-radius: 8px;
 }
-.saved-item.active { border-color: var(--accent); background: var(--accent-soft); }
-.saved-name { font-weight: 600; font-size: 14px; }
+.cfg-item.active { background: var(--primary-soft); }
+.cfg-name { font-weight: 600; font-size: 14px; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .using-tag {
-  margin-left: 6px; padding: 1px 8px; font-size: 11px;
-  background: var(--accent); color: var(--bg-card); border-radius: 999px;
+  padding: 1px 8px; font-size: 11px; font-weight: 600;
+  background: var(--primary); color: #fff; border-radius: 999px;
 }
-.saved-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-.saved-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.cfg-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.cfg-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .btn-sm {
-  padding: 5px 12px; font-size: 12px; border: none; border-radius: 6px;
-  background: var(--primary); color: var(--bg-card); cursor: pointer;
+  padding: 5px 12px; font-size: 12px; font-weight: 600; border: none; border-radius: 6px;
+  background: var(--primary); color: #fff; cursor: pointer;
 }
 .btn-sm:hover { background: var(--primary-hover); }
 .btn-sm.danger { background: var(--danger); }
-.btn-sm.danger:hover { background: #b91c1c; }
+.btn-sm.danger:hover { opacity: 0.85; }
 
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field label { font-weight: 600; font-size: 13px; }
-.req { color: var(--danger); }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 13px; font-weight: 600; color: var(--text); }
+.req { color: var(--danger); margin-left: 3px; }
+.opt { color: var(--text-faint); font-weight: 400; font-size: 11px; margin-left: 6px; }
 .field input {
-  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
-  font-size: 14px; width: 100%; box-sizing: border-box; background: var(--bg-card);
+  padding: 10px 12px; border: none; border-radius: 8px;
+  font-size: 14px; width: 100%; box-sizing: border-box;
+  background: var(--bg-card); color: var(--text);
 }
-.field input:focus { outline: 2px solid var(--primary); border-color: transparent; }
-.actions { display: flex; justify-content: center; }
-.error { color: var(--danger); font-size: 14px; text-align: center; }
-.notice { color: var(--accent-text); background: var(--accent-soft); border: 1px solid #6ee7b7; border-radius: 8px; padding: 8px 12px; font-size: 13px; text-align: center; }
-.hint { font-size: 12px; line-height: 1.7; }
+.field input::placeholder { color: var(--text-faint); }
+.field input:focus { outline: 2px solid var(--primary); }
+
+.btn.primary.wide { width: 100%; padding: 11px; font-size: 14px; font-weight: 600; }
+.error { color: var(--danger); font-size: 13px; text-align: center; }
+.notice {
+  color: var(--accent-text); background: var(--accent-soft);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px; text-align: center;
+}
 </style>

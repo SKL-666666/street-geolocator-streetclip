@@ -291,7 +291,7 @@ onUnmounted(() => {
             <span class="bar-city">
               {{ item.c.city || '—' }}<span v-if="item.c.city_zh && item.c.city_zh !== item.c.city" class="zh-tag">{{ item.c.city_zh }}</span>
             </span>
-            <span class="bar-prob">{{ (item.c.score * 100).toFixed(0) }}%</span>
+            <span class="bar-prob">{{ Math.min(100, Math.round(item.c.score * 100)) }}<i class="pct">置信</i></span>
             <span class="bar-hint" v-if="shortHint(item.c)">⚠ {{ shortHint(item.c) }}</span>
           </div>
         </div>
@@ -423,7 +423,8 @@ onUnmounted(() => {
 .bar-country { font-weight: 700; font-size: 14px; }
 .bar-city { font-size: 14px; }
 .zh-tag { font-size: 12px; color: var(--text-muted); margin-left: 4px; }
-.bar-prob { font-weight: 700; color: var(--primary); text-align: right; }
+.bar-prob { font-weight: 700; color: var(--primary); text-align: right; white-space: nowrap; }
+.bar-prob .pct { font-style: normal; font-weight: 500; font-size: 10px; color: var(--text-muted); margin-left: 3px; }
 .bar-hint { font-size: 11px; color: var(--primary); }
 
 .empty-result { padding: 6px 2px 10px; }

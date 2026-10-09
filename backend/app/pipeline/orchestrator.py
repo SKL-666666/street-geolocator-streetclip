@@ -291,7 +291,8 @@ class Orchestrator:
                 if not c.country:
                     continue
                 # rank 越小分越高：把 score 与 1/rank 结合，保证 Top1 权重大
-                w = max(c.score, 0.01) + (1.0 / c.rank) * 0.5
+                # 归一到 0~1：score≤1 且 0.5/rank≤0.5 → 和≤1.5
+                w = min(1.0, (max(c.score, 0.01) + (1.0 / c.rank) * 0.5) / 1.5)
                 ctry_acc[c.country] = ctry_acc.get(c.country, 0.0) + w
                 if c.country_zh:
                     ctry_zh[c.country] = c.country_zh
@@ -344,7 +345,7 @@ class Orchestrator:
         fused_cands = []
         for k, cand in group.items():
             s = city_score.get(k) or ctry_score.get(k[0]) or cand.score
-            cand.score = round(s, 4)
+            cand.score = round(min(1.0, max(0.0, s)), 4)   # 防虚高: 永在[0,1]
             cand.evidence = [f"多图融合×{n}"] + list(cand.evidence)[:4]
             fused_cands.append(cand)
         fused_cands.sort(key=lambda c: -c.score)
