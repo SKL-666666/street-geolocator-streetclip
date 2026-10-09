@@ -45,6 +45,13 @@ COUNTRIES = [
     "Egypt", "Morocco", "Tunisia", "Algeria", "South Africa", "Kenya", "Nigeria",
     "Ghana", "Senegal", "Tanzania", "Ethiopia", "Australia", "New Zealand",
     "Papua New Guinea",
+    # ---- Step7 补全：谷歌街景有覆盖但原101国缺失的29国（2026-10 实测 +1pp，
+    #     消除"第102国必错"硬伤；零样本加文本即可，无需重训）----
+    "Luxembourg", "Liechtenstein", "Andorra", "Monaco", "Malta", "Cyprus",
+    "Georgia", "Azerbaijan", "Armenia", "Bahrain", "Kuwait", "Mauritius",
+    "Fiji", "Bhutan", "Brunei", "Madagascar", "Mozambique", "Uganda",
+    "Zambia", "Zimbabwe", "Botswana", "Namibia", "Rwanda", "Ivory Coast",
+    "Cameroon", "Angola", "Greenland", "Faroe Islands", "Seychelles",
 ]
 TEMPLATES = ["a street view photo taken in {}", "a photo taken in {}", "a street in {}"]
 
