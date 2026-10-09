@@ -57,19 +57,19 @@ const rows = computed(() => {
 <style scoped>
 h3 { margin-bottom: 10px; }
 .summary {
-  background: #eff6ff; color: #1e40af;
+  background: var(--primary-soft); color: #1e40af;
   padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 14px;
 }
 .hypos { margin-bottom: 14px; }
 .hypo-row { display: grid; grid-template-columns: 140px auto 1fr 48px; gap: 8px; align-items: center; padding: 5px 0; }
 .hypo-name { font-weight: 600; font-size: 14px; }
 .hypo-en { font-size: 11px; grid-column: 2; }
-.hypo-bar { height: 8px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
-.hypo-bar span { display: block; height: 100%; background: #2563eb; }
-.hypo-pct { font-size: 12px; color: #374151; }
+.hypo-bar { height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; }
+.hypo-bar span { display: block; height: 100%; background: var(--primary); }
+.hypo-pct { font-size: 12px; color: var(--text-muted); }
 .hypo-reason { grid-column: 1 / -1; padding-left: 148px; }
 
 .clue-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .clue-table td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
-.clue-label { width: 100px; color: #6b7280; font-weight: 500; white-space: nowrap; }
+.clue-label { width: 100px; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
 </style>

@@ -87,8 +87,8 @@ onUnmounted(() => timer && clearTimeout(timer))
 <style scoped>
 .batch-wrap { max-width: 720px; margin: 0 auto; }
 .batch-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.btn-ghost { background: #e5e7eb; color: #374151; }
-.btn-ghost:hover { background: #d1d5db; }
+.btn-ghost { background: var(--border); color: var(--text-muted); }
+.btn-ghost:hover { background: var(--border); }
 .card-list { display: flex; flex-direction: column; gap: 10px; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; }
 .row-main { flex: 1; min-width: 0; }

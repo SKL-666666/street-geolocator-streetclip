@@ -85,19 +85,19 @@ onMounted(load)
 <style scoped>
 .hist-wrap { max-width: 720px; margin: 0 auto; }
 .hist-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.btn-ghost { background: #e5e7eb; color: #374151; }
-.btn-ghost:hover { background: #d1d5db; }
+.btn-ghost { background: var(--border); color: var(--text-muted); }
+.btn-ghost:hover { background: var(--border); }
 .card-list { display: flex; flex-direction: column; gap: 8px; }
 .row {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   padding: 12px 16px; cursor: pointer; text-align: left;
-  border: 1px solid #e5e7eb; transition: border-color 0.15s;
+  border: 1px solid var(--border); transition: border-color 0.15s;
 }
-.row:hover { border-color: #2563eb; }
+.row:hover { border-color: var(--primary); }
 .row-main { flex: 1; min-width: 0; }
 .fname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 .time { font-size: 12px; flex-shrink: 0; }
-.error-card { color: #dc2626; }
+.error-card { color: var(--danger); }
 </style>

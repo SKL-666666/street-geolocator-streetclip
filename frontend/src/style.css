@@ -1,17 +1,68 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ==== 统一色彩变量（亮色为默认，html.dark 覆盖为深色）==== */
+:root {
+  --bg: #f4f6f9;
+  --bg-card: #ffffff;
+  --bg-subtle: #f9fafb;      /* 次级块（引擎选项等） */
+  --bg-hover: #eff6ff;
+  --text: #1f2937;
+  --text-muted: #6b7280;
+  --text-faint: #9ca3af;
+  --border: #e5e7eb;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-soft: #eff6ff;
+  --primary-faint: #93c5fd;
+  --accent: #059669;         /* 范围选中 */
+  --accent-soft: #ecfdf5;
+  --accent-text: #065f46;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --danger-text: #991b1b;
+  --shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  --badge-bg: #e5e7eb;
+  --badge-text: #374151;
+  --radius: 12px;
+}
+
+html.dark {
+  --bg: #0f172a;
+  --bg-card: #1e293b;
+  --bg-subtle: #263449;
+  --bg-hover: #233049;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+  --border: #334155;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-soft: #1e3a5f;
+  --primary-faint: #1e40af;
+  --accent: #10b981;
+  --accent-soft: #064e3b;
+  --accent-text: #6ee7b7;
+  --danger: #ef4444;
+  --danger-soft: #450a0a;
+  --danger-text: #fca5a5;
+  --shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  --badge-bg: #334155;
+  --badge-text: #cbd5e1;
+}
+
 body {
   font-family: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
-  background: #f4f6f9;
-  color: #1f2937;
+  background: var(--bg);
+  color: var(--text);
+  transition: background 0.2s, color 0.2s;
 }
 
 #app { min-height: 100vh; }
 
 .card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
   padding: 20px;
 }
 
@@ -20,27 +71,36 @@ body {
   padding: 10px 22px;
   border: none;
   border-radius: 8px;
-  background: #2563eb;
+  background: var(--primary);
   color: #fff;
   font-size: 15px;
   cursor: pointer;
   transition: background 0.15s;
 }
-.btn:hover { background: #1d4ed8; }
-.btn:disabled { background: #93c5fd; cursor: not-allowed; }
+.btn:hover { background: var(--primary-hover); }
+.btn:disabled { background: var(--primary-faint); cursor: not-allowed; }
 
 .badge {
   display: inline-block;
   padding: 2px 10px;
   border-radius: 999px;
   font-size: 12px;
-  background: #e5e7eb;
-  color: #374151;
+  background: var(--badge-bg);
+  color: var(--badge-text);
 }
 .badge.exact { background: #d1fae5; color: #065f46; }
 .badge.street { background: #dbeafe; color: #1e40af; }
 .badge.city { background: #fef3c7; color: #92400e; }
 .badge.country { background: #fee2e2; color: #991b1b; }
+html.dark .badge.exact { background: #064e3b; color: #6ee7b7; }
+html.dark .badge.street { background: #1e3a5f; color: #93c5fd; }
+html.dark .badge.city { background: #451a03; color: #fcd34d; }
+html.dark .badge.country { background: #450a0a; color: #fca5a5; }
 
-.muted { color: #6b7280; font-size: 13px; }
+.muted { color: var(--text-muted); font-size: 13px; }
 .mono { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; }
+
+/* 滚动条（深浅自适应） */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+::-webkit-scrollbar-track { background: transparent; }

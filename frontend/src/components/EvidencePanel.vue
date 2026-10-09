@@ -77,20 +77,20 @@ const TOOL_LABEL = { geocode: '📍 地理编码', wiki: '📚 百科查证', ti
 
 <style scoped>
 h3 { margin-bottom: 12px; }
-.section-title { font-size: 13px; color: #374151; font-weight: 600; margin: 12px 0 8px; }
+.section-title { font-size: 13px; color: var(--text-muted); font-weight: 600; margin: 12px 0 8px; }
 
 .kb-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .kb-table th, .kb-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: top; }
-.kb-table th { color: #6b7280; font-weight: 500; }
+.kb-table th { color: var(--text-muted); font-weight: 500; }
 .country-name { font-weight: 600; white-space: nowrap; }
 .unverified { font-size: 11px; color: #b45309; background: #fef3c7; border-radius: 4px; padding: 1px 5px; margin-left: 4px; }
-.mini-bar { width: 70px; height: 6px; background: #e5e7eb; border-radius: 999px; overflow: hidden; display: inline-block; vertical-align: middle; }
-.mini-bar span { display: block; height: 100%; background: #2563eb; }
-.mini-bar.kb span { background: #059669; }
-.pct { font-size: 11px; color: #6b7280; margin-left: 4px; }
+.mini-bar { width: 70px; height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; display: inline-block; vertical-align: middle; }
+.mini-bar span { display: block; height: 100%; background: var(--primary); }
+.mini-bar.kb span { background: var(--accent); }
+.pct { font-size: 11px; color: var(--text-muted); margin-left: 4px; }
 .final-score { font-weight: 700; color: #b45309; }
 .clue { font-size: 12px; margin: 2px 0; }
-.clue.support { color: #065f46; }
+.clue.support { color: var(--accent-text); }
 .clue.conflict { color: #b91c1c; }
 
 .fact-row { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }

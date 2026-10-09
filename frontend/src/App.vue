@@ -12,6 +12,17 @@ const currentTask = ref(null)
 const batchIds = ref([])
 const cameFromBatch = ref(false)   // 从批量列表进入详情 → 返回时回到列表而非主页
 
+// 深色模式（localStorage 持久化，作用于 html.dark）
+const dark = ref(localStorage.getItem('theme') === 'dark')
+function applyTheme() {
+  document.documentElement.classList.toggle('dark', dark.value)
+  localStorage.setItem('theme', dark.value ? 'dark' : 'light')
+}
+function toggleTheme() {
+  dark.value = !dark.value
+  applyTheme()
+}
+
 const isBatch = computed(() => view.value === 'batch' && batchIds.value.length > 1)
 // 未配置 LLM Key → 强制显示设置页（其余视图无意义）
 const needSetup = computed(() => api.loaded && api.needsSetup)
@@ -64,6 +75,7 @@ async function onSetupSaved() {
 let pollTimer = null
 
 onMounted(() => {
+  applyTheme()   // 恢复深色/亮色主题
   fetchConfig()
   // 预热轮询：本地模型未就绪时每 2s 刷新 config，就绪后停止
   pollTimer = setInterval(async () => {
@@ -87,6 +99,11 @@ onMounted(() => {
       <button class="btn btn-ghost icon-btn" title="历史记录" @click="view = 'history'">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
       </button>
+      <button class="btn btn-ghost icon-btn" :title="dark ? '切换亮色' : '切换深色'" @click="toggleTheme">
+        <!-- 月亮(亮色下点击变深) / 太阳(深色下点击变亮) -->
+        <svg v-if="!dark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      </button>
       <button class="btn btn-ghost icon-btn" title="设置" @click="openSetup">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -108,13 +125,13 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
 }
-.header h1 { font-size: 20px; display: flex; align-items: center; gap: 8px; }
+.header h1 { font-size: 20px; display: flex; align-items: center; gap: 8px; color: var(--text); }
 .header-right { display: flex; gap: 8px; align-items: center; }
-.btn-ghost { background: #e5e7eb; color: #374151; padding: 6px 12px; font-size: 13px; }
-.btn-ghost:hover { background: #d1d5db; }
+.btn-ghost { background: var(--bg-subtle); color: var(--text-muted); padding: 6px 12px; font-size: 13px; }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text); }
 .icon-btn { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; }
 .main { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
 .footer { text-align: center; padding: 16px; }

@@ -287,10 +287,10 @@ defineExpose({ flyToCandidate })
 :deep(.marker) {
   width: 26px; height: 26px;
   border-radius: 50%;
-  color: #fff;
+  color: var(--bg-card);
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 700;
-  border: 2px solid #fff;
+  border: 2px solid var(--bg-card);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
   cursor: pointer;
 }

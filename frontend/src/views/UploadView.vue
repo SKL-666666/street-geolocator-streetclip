@@ -113,19 +113,7 @@ async function submit() {
       <h2>上传街景照片</h2>
       <p class="muted">支持多选，Ctrl+V 直接粘贴图片</p>
 
-      <!-- 模式选择 -->
-      <div class="modes">
-        <button
-          v-for="m in modeList"
-          :key="m.key"
-          class="mode-card"
-          :class="{ active: mode === m.key }"
-          @click="mode = m.key; savePrefs()"
-        >
-          <div class="mode-name">{{ m.label }}</div>
-          <div class="mode-desc">{{ m.desc }}</div>
-        </button>
-      </div>
+      <!-- 模式选择已隐藏（仅剩单一"本地免费"模式，选择器冗余；mode 仍默认 local） -->
 
       <!-- 范围选择（全世界 / 除中国大陆 / 中国模式） -->
       <div class="scopes">
@@ -239,33 +227,33 @@ async function submit() {
 .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 14px 0 4px; }
 .mode-card {
   padding: 10px 12px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--bg-card);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.15s, background 0.15s;
 }
-.mode-card.active { border-color: #2563eb; background: #eff6ff; }
+.mode-card.active { border-color: var(--primary); background: var(--primary-soft); }
 .mode-name { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
-.mode-desc { font-size: 12px; color: #6b7280; line-height: 1.4; }
+.mode-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
 
 .scopes { display: flex; gap: 10px; margin: 6px 0 4px; }
 .scope-card {
   flex: 1;
   padding: 10px 12px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--bg-card);
   cursor: pointer;
   font-weight: 600;
   font-size: 14px;
   transition: border-color 0.15s, background 0.15s;
 }
-.scope-card.active { border-color: #059669; background: #ecfdf5; }
-.scope-card.china.active { border-color: #dc2626; background: #fef2f2; }
-.scope-note { font-size: 12px; color: #065f46; background: #ecfdf5; border-radius: 8px; padding: 6px 10px; margin-bottom: 4px; }
-.china-note { color: #991b1b; background: #fef2f2; }
+.scope-card.active { border-color: var(--accent); background: var(--accent-soft); }
+.scope-card.china.active { border-color: var(--danger); background: var(--danger-soft); }
+.scope-note { font-size: 12px; color: var(--accent-text); background: var(--accent-soft); border-radius: 8px; padding: 6px 10px; margin-bottom: 4px; }
+.china-note { color: var(--danger-text); background: var(--danger-soft); }
 .enhance-toggles { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 4px; }
 
 .ds-toggle {
@@ -274,22 +262,22 @@ async function submit() {
   gap: 10px;
   margin: 10px 0 4px;
   padding: 8px 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #f9fafb;
+  background: var(--bg-subtle);
   cursor: pointer;
 }
-.ds-toggle input { width: 18px; height: 18px; accent-color: #2563eb; flex-shrink: 0; }
+.ds-toggle input { width: 18px; height: 18px; accent-color: var(--primary); flex-shrink: 0; }
 .ds-toggle span { display: flex; flex-direction: column; gap: 2px; }
 .ds-toggle b { font-size: 13px; }
-.ds-toggle small { font-size: 12px; color: #6b7280; }
+.ds-toggle small { font-size: 12px; color: var(--text-muted); }
 
 .city-engine {
   margin: 10px 0 4px;
   padding: 8px 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #f9fafb;
+  background: var(--bg-subtle);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -299,20 +287,20 @@ async function submit() {
 .city-engine .ce-opts label {
   display: flex; align-items: center; gap: 6px;
   font-size: 12.5px; padding: 5px 10px; border-radius: 8px;
-  border: 1px solid #e5e7eb; background: #fff; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg-card); cursor: pointer;
 }
-.city-engine .ce-opts label.on { border-color: #2563eb; background: #eff6ff; }
-.city-engine .ce-opts input { accent-color: #2563eb; }
-.city-engine small { font-size: 11.5px; color: #6b7280; }
+.city-engine .ce-opts label.on { border-color: var(--primary); background: var(--primary-soft); }
+.city-engine .ce-opts input { accent-color: var(--primary); }
+.city-engine small { font-size: 11.5px; color: var(--text-muted); }
 
 .dropzone {
   margin: 16px 0;
-  border: 2px dashed #cbd5e1;
+  border: 2px dashed var(--border);
   border-radius: 12px;
   overflow: hidden;
   transition: border-color 0.15s, background 0.15s;
 }
-.dropzone.over { border-color: #2563eb; background: #eff6ff; }
+.dropzone.over { border-color: var(--primary); background: var(--primary-soft); }
 .dropzone-inner {
   display: flex;
   flex-direction: column;
@@ -329,17 +317,17 @@ async function submit() {
 .thumb-x {
   position: absolute; top: -6px; right: -6px;
   width: 20px; height: 20px; border-radius: 50%;
-  border: none; background: #dc2626; color: #fff;
+  border: none; background: var(--danger); color: var(--bg-card);
   font-size: 11px; cursor: pointer;
 }
 .actions { display: flex; justify-content: center; }
 .no-key-note {
   margin-top: 12px;
-  background: #fef2f2; color: #991b1b;
-  border: 1px solid #fca5a5; border-radius: 8px;
+  background: var(--danger-soft); color: var(--danger-text);
+  border: 1px solid var(--danger); border-radius: 8px;
   padding: 10px 14px; font-size: 13px; text-align: center;
 }
-.error { margin-top: 12px; color: #dc2626; font-size: 14px; text-align: center; }
+.error { margin-top: 12px; color: var(--danger); font-size: 14px; text-align: center; }
 
 /* 竖屏/窄屏适配（16:9 → 9:16） */
 @media (max-width: 640px) {
