@@ -319,9 +319,30 @@ async def submit_feedback(task_id: str, request: Request,
         "scope": result.meta.get("scope"),
         "timestamp": time.time(),
     }
+    # ---- 方案A：坐标纠正 → 反查真实国家 → 该图作为带标签参考图入库 ----
+    gallery_msg = ""
+    if fb["correct_lat"] is not None and fb["correct_lon"] is not None:
+        try:
+            from ..geokb.geo_lookup import coord_to_country
+            real_country = coord_to_country(fb["correct_lat"], fb["correct_lon"])
+            fb["correct_country"] = real_country           # 供后续混淆统计
+            if real_country:
+                img = _load_uploaded_image(task_id)
+                if img:
+                    from ..retrieval.gallery_add import add_correction
+                    r = add_correction(img, real_country, result.filename or "")
+                    gallery_msg = ("已加入检索参考库" if r.get("ok")
+                                   else f"入库跳过（{r.get('reason')}）")
+                else:
+                    gallery_msg = "原图已清理，未入库"
+        except Exception as e:  # noqa: BLE001
+            gallery_msg = f"入库异常（{type(e).__name__}）"
+
     fb_path = fb_dir / f"{task_id}.json"
     fb_path.write_text(json.dumps(fb, ensure_ascii=False, indent=1), encoding="utf-8")
-    return {"ok": True, "message": "反馈已保存", "path": str(fb_path)}
+    return {"ok": True, "message": "反馈已保存" + (f"；{gallery_msg}" if gallery_msg else ""),
+            "path": str(fb_path), "gallery": gallery_msg,
+            "correct_country": fb.get("correct_country")}
 
 
 @router.post("/tasks/{task_id}/retry", response_model=AnalyzeResponse)

@@ -28,8 +28,10 @@ def build_confusion_matrix(feedbacks: list[dict]) -> dict:
     matrix = defaultdict(lambda: defaultdict(int))
     for fb in feedbacks:
         predicted = fb.get("predicted")
-        correct = fb.get("correct_country") or fb.get("correct_lat")  # lat 表示用户选了坐标
-        if predicted and correct and isinstance(correct, str):
+        # correct_country 由反馈端点用坐标反查填充（字符串国家名）；
+        # 旧数据无此字段则跳过（不再把坐标数字误判为有效值）
+        correct = fb.get("correct_country")
+        if predicted and isinstance(correct, str) and correct:
             matrix[predicted][correct] += 1
     return dict(matrix)
 

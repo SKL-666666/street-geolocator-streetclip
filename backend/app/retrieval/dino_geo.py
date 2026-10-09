@@ -44,8 +44,10 @@ def _load() -> bool:
             data = np.load(_FEATURES, allow_pickle=False)
             _feats = data["feats"]
             _countries = [str(c) for c in data["countries"]]
-            _proc = AutoImageProcessor.from_pretrained(MODEL_ID)
-            _model = AutoModel.from_pretrained(MODEL_ID).eval()
+            # 模型权重只在首次加载（invalidate 后仅重读特征矩阵，不重建 1.2GB 模型）
+            if _model is None:
+                _proc = AutoImageProcessor.from_pretrained(MODEL_ID)
+                _model = AutoModel.from_pretrained(MODEL_ID).eval()
             return True
         except Exception as e:  # noqa: BLE001 任何失败 → 降级
             _load_error = f"{type(e).__name__}: {e}"
@@ -81,3 +83,13 @@ def retrieve_countries(image_bytes: bytes, k: int = 5) -> dict[str, float] | Non
 
 def error() -> str | None:
     return _load_error
+
+
+def invalidate() -> None:
+    """图库变更（用户纠错入库）后调用：清空内存特征，下次查询重载。"""
+    global _feats, _countries, _load_error
+    with _lock:
+        _feats = None
+        _countries = []
+        _load_error = None
+    # 保留 _model/_proc（模型权重不重载，只重读特征矩阵）
