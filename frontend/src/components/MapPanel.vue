@@ -65,7 +65,7 @@ const MIN_STYLE = {
     id: 'base',
     type: 'raster',
     source: 'base',
-    paint: { 'raster-fade-duration': 0, 'raster-opacity': 1, 'raster-resampling': 'nearest' },
+    paint: { 'raster-fade-duration': 0, 'raster-opacity': 1 },
   }],
 }
 
@@ -120,12 +120,6 @@ function fallbackToTencent() {
   renderMarkers()  // 坐标系改变 → 重新放置标记
 }
 
-const SRC_LABEL = {
-  exif: 'EXIF GPS', llm: 'LLM 假设', prior: '视觉先验', geocode: '地理编码',
-  streetview: '街景', kartaview: 'KartaView 街景', country: '国家级示意（几何中心）',
-  fallback: '默认示意点（无证据）',
-}
-
 function flyToCandidate(cand) {
   if (!map || !cand) return
   const [lon, lat] = display(cand.lon, cand.lat)
@@ -166,14 +160,10 @@ function renderMarkers() {
     el.className = 'marker'
     el.style.background = rankMap[i] === 1 ? '#dc2626' : '#2563eb'
     el.textContent = rankMap[i]
-    const popup = new maplibregl.Popup({ offset: 24, maxWidth: '280px' }).setHTML(`
-      <div><b>候选 #${rankMap[i]} · ${c.city || c.city_zh || ''}${c.city_zh && c.city_zh !== c.city ? '（' + c.city_zh + '）' : ''}</b>（得分 ${(c.score * 100).toFixed(0)}）</div>
-      <div class="muted">${c.country_zh || c.country || ''}</div>
-      <div class="muted">${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}</div>
-      <div class="muted">来源：${SRC_LABEL[c.source] || c.source}</div>
-      ${c.accuracy_hint ? `<div class="muted" style="color:#b45309">⚠ ${c.accuracy_hint}</div>` : ''}
-      ${c.thumbnail_url ? `<img src="${c.thumbnail_url}" width="240" style="border-radius:6px;margin-top:6px"/>` : ''}
-      ${(c.evidence || []).map((e) => `<div class="muted">· ${e}</div>`).join('')}
+    const popup = new maplibregl.Popup({ offset: 24, maxWidth: '240px' }).setHTML(`
+      <div><b>${c.city || c.city_zh || ''}</b>${c.country_zh ? ' · ' + c.country_zh : ''}</div>
+      <div style="color:#6b7280;font-size:12px;margin-top:2px">${Math.min(100, Math.round(c.score * 100))} 置信</div>
+      ${c.thumbnail_url ? `<img src="${c.thumbnail_url}" width="220" style="border-radius:6px;margin-top:6px"/>` : ''}
     `)
     const marker = new maplibregl.Marker({ element: el })
       .setLngLat([lon, lat])

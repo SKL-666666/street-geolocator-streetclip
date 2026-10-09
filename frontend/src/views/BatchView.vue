@@ -58,7 +58,14 @@ onUnmounted(() => timer && clearTimeout(timer))
             <span class="badge" :class="t.confidence_level">{{ confidenceLabel(t.confidence_level) }}</span>
             <template v-if="t.status === 'succeeded'"> · {{ t.message }}</template>
             <template v-else-if="t.status === 'failed'"> · ❌ {{ t.error }}</template>
-            <template v-else> · {{ t.message || '排队中…' }}（{{ t.progress }}%）</template>
+            <template v-else>{{ t.message || '排队中…' }}</template>
+          </div>
+          <!-- 任务进度条（与结果页同风格） -->
+          <div v-if="!['succeeded', 'failed'].includes(t.status)" class="row-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: (t.progress || 0) + '%' }"></div>
+            </div>
+            <span class="progress-pct">{{ t.progress || 0 }}%</span>
           </div>
           <template v-if="t.scene">
             <div class="muted hyp" v-for="h in t.scene.country_hypotheses.slice(0, 2)" :key="h.country">
@@ -96,4 +103,8 @@ onUnmounted(() => timer && clearTimeout(timer))
 .fname { font-weight: 600; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hyp { font-size: 12px; margin-top: 2px; }
 .btn-sm { padding: 8px 14px; font-size: 13px; flex-shrink: 0; }
+.row-progress { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.progress-bar { flex: 1; height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #3b82f6); transition: width 0.3s linear; }
+.progress-pct { font-size: 12px; font-weight: 600; color: var(--text-muted); min-width: 36px; text-align: right; }
 </style>

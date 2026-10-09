@@ -24,7 +24,6 @@ const mode = ref('local')  // 仅本地模式（本地判国家 + 城市引擎�
 const scope = ref(['world', 'no-cn', 'cn'].includes(prefs.scope) ? prefs.scope : 'world')
 // 上传模式：batch=串行批量（无上限，逐张各自出结果）/ fusion=同地点融合（2~3张并出一个结果）
 const upMode = ref(['batch', 'fusion'].includes(prefs.upMode) ? prefs.upMode : 'batch')
-const progress = ref({ done: 0, total: 0, pct: 0 })
 
 const canSubmit = computed(() => files.value.length && !uploading.value && !api.warmingUp &&
   !(api.needsSetup && api.localCityEngine === 'llm') &&
@@ -75,10 +74,7 @@ function onGlobalPaste(e) {
 }
 
 onMounted(() => window.addEventListener('paste', onGlobalPaste))
-onUnmounted(() => {
-  window.removeEventListener('paste', onGlobalPaste)
-  clearInterval(pctTimer)
-})
+onUnmounted(() => window.removeEventListener('paste', onGlobalPaste))
 
 function onFileInput(e) {
   if (e.target.files?.length) addFiles(e.target.files)
@@ -96,71 +92,28 @@ function onDrop(e) {
   if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files)
 }
 
-// 平滑显示进度（与结果页同算法）：向真实目标靠拢，不跳变
-const shownPct = ref(0)
-let pctTimer = null
-function pctLoop() {
-  if (!uploading.value) return
-  const target = Math.min(95, Math.max(progress.value.pct, shownPct.value))
-  shownPct.value = Math.min(95, shownPct.value + (target - shownPct.value) * 0.18 + 0.3)
-}
-function startPctLoop() {
-  shownPct.value = 0
-  clearInterval(pctTimer)
-  pctTimer = setInterval(pctLoop, 120)
-}
-function stopPctLoop(finish) {
-  clearInterval(pctTimer)
-  pctTimer = null
-  if (finish) shownPct.value = 100
-}
-
 async function submit() {
   if (!canSubmit.value) return
   uploading.value = true
   error.value = ''
-  progress.value = { done: 0, total: files.value.length, pct: 0 }
-  startPctLoop()
   try {
     if (upMode.value === 'fusion') {
-      // 同地点融合：后端立即返回占位id(后台并行分析+聚合)，前端轮询直到完成
+      // 融合：后端立即返回占位id → 立即切进度界面(结果页显示平滑进度条)
       const fid = await uploadFusion(files.value, mode.value, scope.value)
-      // 轮询融合任务进度（占位任务 stage=fusing，完成变 succeeded）
-      const t0 = Date.now()
-      while (true) {
-        await new Promise((r) => setTimeout(r, 700))
-        const t = await fetchTask(fid).catch(() => null)
-        if (t) progress.value.pct = Math.min(99, t.progress || 0)
-        if (t && ['succeeded', 'failed'].includes(t.status)) {
-          progress.value.pct = 100
-          break
-        }
-        if (Date.now() - t0 > 200000) break   // 兜底200s
-      }
-      emit('analyzed', [fid])   // 单 id → ResultView 展示融合结果
+      emit('analyzed', [fid])
     } else {
-      // 串行批量：逐张提交（无上限），各自独立出结果
+      // 批量：并行快速提交(各任务后台独立跑) → 切批量进度界面
+      const results = await Promise.allSettled(
+        files.value.map((f) => uploadImage(f, mode.value, scope.value)),
+      )
       const ids = []
-      for (const f of files.value) {
-        try {
-          ids.push(await uploadImage(f, mode.value, scope.value))
-        } catch (e) {
-          error.value = `${f.name}: ${e.message}`
-        }
-        progress.value.done++
-        progress.value.pct = Math.round(progress.value.done / files.value.length * 100)
-      }
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') ids.push(r.value)
+        else error.value = `${files.value[i].name}: ${r.reason?.message || r.reason}`
+      })
       if (ids.length) emit('analyzed', ids)
     }
   } finally {
-    // 完成动画: 进度先平滑冲到100再收起(避免60%→瞬间消失的突兀)
-    clearInterval(pctTimer); pctTimer = null
-    const t0 = Date.now()
-    while (shownPct.value < 100 && Date.now() - t0 < 900) {
-      shownPct.value = Math.min(100, shownPct.value + 7)
-      await new Promise((r) => setTimeout(r, 60))
-    }
-    stopPctLoop(true)
     uploading.value = false
   }
 }
@@ -273,17 +226,12 @@ async function submit() {
 
       <div class="actions">
         <button class="btn" :disabled="!canSubmit" @click="submit">
-          {{ uploading ? (upMode === 'fusion' ? '融合分析中…' : `已提交 ${progress.done}/${progress.total}`)
-                       : (files.length > 1 ? `开始分析 ${files.length} 张` : '开始分析') }}
+          {{ uploading ? '提交中…' : (files.length > 1 ? `开始分析 ${files.length} 张` : '开始分析') }}
         </button>
       </div>
-      <!-- 进度条：与结果页同风格（标题+百分比+圆角渐变条），平滑推进 -->
-      <div v-if="uploading" class="progress-card">
-        <div class="progress-head">
-          <span>{{ upMode === 'fusion' ? '融合分析中' : `已提交 ${progress.done}/${progress.total}` }}</span>
-          <span class="muted">{{ shownPct }}%</span>
-        </div>
-        <div class="progress-bar"><div class="progress-fill" :style="{ width: shownPct + '%' }"></div></div>
+      <!-- 提交中提示（进度条在提交后的进度界面显示，与批量模式统一） -->
+      <div v-if="uploading" class="muted" style="text-align:center;margin-top:10px">
+        正在提交，稍候…
       </div>
       <!-- 预热中：本地模型加载，禁止上传 -->
       <div v-if="api.warmingUp" class="no-key-note">
@@ -407,10 +355,7 @@ async function submit() {
   font-size: 11px; cursor: pointer;
 }
 .actions { display: flex; justify-content: center; }
-.progress-card { margin-top: 14px; }
-.progress-head { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
-.progress-bar { height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; }
-.progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #3b82f6); transition: width 0.2s linear; }
+
 .no-key-note {
   margin-top: 12px;
   background: var(--danger-soft); color: var(--danger-text);
