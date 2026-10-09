@@ -34,6 +34,12 @@ async function onCityEngine(e) {
   await savePrefsApi({ localCityEngine: v })
 }
 
+async function onNationalEngine(e) {
+  const v = e.target.value
+  api.nationalEngine = v  // 立即反馈
+  await savePrefsApi({ nationalEngine: v })
+}
+
 function addFiles(list) {
   error.value = ''
   const ok = [...list].filter((f) => f.type.startsWith('image/'))
@@ -85,14 +91,15 @@ async function submit() {
   const ids = []
   progress.value = { done: 0, total: files.value.length }
   try {
-    for (const f of files.value) {
-      try {
-        ids.push(await uploadImage(f, mode.value, scope.value))
-      } catch (e) {
-        error.value = `${f.name}: ${e.message}`
-      }
+    // 多图并行上传+分析（同一地区多张图并发提交，进度按完成数递增）
+    const results = await Promise.allSettled(
+      files.value.map((f) => uploadImage(f, mode.value, scope.value)),
+    )
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') ids.push(r.value)
+      else error.value = `${files.value[i].name}: ${r.reason?.message || r.reason}`
       progress.value.done++
-    }
+    })
     if (ids.length) emit('analyzed', ids)
   } finally {
     uploading.value = false
@@ -137,6 +144,24 @@ async function submit() {
       </div>
       <div v-if="scope === 'cn'" class="scope-note china-note">
         中国模式：直接用城市模型推断中国城市（更快、更准），跳过国家级步骤。
+      </div>
+
+      <!-- 本地模式国家引擎（置信分诊） -->
+      <div v-if="mode === 'local'" class="city-engine">
+        <b>国家判断引擎</b>
+        <div class="ce-opts">
+          <label :class="{ on: api.nationalEngine === 'local' }">
+            <input type="radio" value="local" :checked="api.nationalEngine === 'local'"
+                   @change="onNationalEngine" />
+            <span>纯本地（全信 StreetCLIP，零 API）</span>
+          </label>
+          <label :class="{ on: api.nationalEngine === 'adaptive' }">
+            <input type="radio" value="adaptive" :checked="api.nationalEngine === 'adaptive'"
+                   @change="onNationalEngine" />
+            <span>自适应（低置信调 VLM 复核，更准，耗 token）</span>
+          </label>
+        </div>
+        <small class="muted">自适应：置信度高直接用 StreetCLIP（省 API），置信度低才调云端 VLM 复核国家。</small>
       </div>
 
       <!-- 本地模式城市引擎 -->

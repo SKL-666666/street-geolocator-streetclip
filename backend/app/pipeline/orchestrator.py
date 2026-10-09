@@ -501,6 +501,35 @@ class Orchestrator:
                     result.meta = {**result.meta, "retrieval_fused": True}
             if top is None:
                 top = await asyncio.to_thread(classify_countries_feat, feat, 3)
+
+            # ---- Step8 国家级置信分诊 ----
+            # national_engine="local"(纯本地): 无论置信度都信 StreetCLIP, 零 API。
+            # national_engine="adaptive": margin>阈值 信 SC(省API); margin<=阈值 调
+            #   云端VLM(nothinking)复核国家, 与 SC 结果融合(vlm_alpha 票)。
+            vlm_used = False
+            if settings.national_engine == "adaptive" and len(top) >= 2:
+                margin = top[0]["prob"] - top[1]["prob"]
+                if margin <= settings.national_margin_threshold:
+                    from ..llm.vlm_country import vlm_recheck_country
+                    vlm_country = await vlm_recheck_country(image_bytes)
+                    if vlm_country:
+                        # 融合: SC分数归一 + vlm_alpha×VLM票(命中国加权)
+                        sc_max = top[0]["prob"] or 1.0
+                        fused = {t["label"]: t["prob"] / sc_max for t in top}
+                        # VLM 返回的国家若不在 SC Top3, 也纳入(它可能纠正SC漏判)
+                        vc = vlm_country
+                        # 归一到 COUNTRIES 口径
+                        from ..geokb.countries import COUNTRY_ALIASES as _AL
+                        vc_canon = _AL.get(vc, vc)
+                        fused[vc_canon] = fused.get(vc_canon, 0.0) + settings.vlm_alpha
+                        ranked = sorted(fused.items(), key=lambda x: -x[1])
+                        top = [{"label": c, "prob": round(s, 4), "index": i}
+                               for i, (c, s) in enumerate(ranked[:3])]
+                        vlm_used = True
+                        result.meta = {**result.meta, "vlm_recheck": True,
+                                       "vlm_country": vlm_country,
+                                       "sc_margin": round(margin, 4)}
+
             # no-cn 模式：排除中国大陆候选，补充后续排名
             if scope == "no-cn":
                 top = [t for t in top if t["label"] != "China"]

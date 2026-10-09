@@ -83,6 +83,23 @@ class Settings(BaseSettings):
     # 2026-10 实测 α=0.1~0.15 平台 56.2%→61.8%；0 = 关闭融合）
     retrieval_alpha: float = 0.125
 
+    # ---- Step8：国家级置信分诊 + 云端VLM复核 ----
+    # national_engine: "local"=纯本地(无论置信度都信StreetCLIP, 零API) /
+    #                  "adaptive"=高置信(>阈值)信SC, 低置信(<阈值)调VLM复核国家
+    national_engine: str = "local"
+    # 分诊阈值: StreetCLIP Top1-Top2 分差, 大于此值视为高置信(直接信SC)
+    national_margin_threshold: float = 0.04
+    # 低置信时复核用的云端VLM (OpenAI兼容): 小米 MiMo-v2.6-flash (实测国家级70.8%)
+    # nothinking=True 关闭思考链(省token/省时, 实测 enable_thinking:false 生效)
+    vlm_provider: str = "openai"
+    vlm_api_key: str = ""
+    vlm_base_url: str = "https://api.xiaomimimo.com/v1"
+    vlm_model: str = "mimo-v2.6-flash"
+    vlm_nothinking: bool = True
+    vlm_timeout_sec: float = 30.0
+    # 低置信复核的融合权重: final = sc_norm + vlm_alpha×vlm票
+    vlm_alpha: float = 1.0
+
     # KartaView 街景回查：已关闭（实测不影响定位正确率，仅展示缩略图，且荒野图无图可拉）
     streetview_enabled: bool = False
 
@@ -169,6 +186,8 @@ try:
         _prefs = json.loads(_prefs_path.read_text(encoding="utf-8"))
         _city = _prefs.get("local_city_engine", "clip")
         settings.local_city_engine = _city if _city in ("clip", "llm") else "clip"
+        _nat = _prefs.get("national_engine", "local")
+        settings.national_engine = _nat if _nat in ("local", "adaptive") else "local"
 except Exception:  # noqa: BLE001
     pass
 

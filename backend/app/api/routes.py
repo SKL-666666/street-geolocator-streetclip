@@ -54,6 +54,7 @@ async def public_config(request: Request):
         "modes": {k: {"label": v["label"], "desc": v["desc"]} for k, v in ANALYZE_MODES.items()},
         "default_mode": settings.analyze_mode,
         "local_city_engine": _load_prefs().get("local_city_engine", settings.local_city_engine),
+        "national_engine": _load_prefs().get("national_engine", settings.national_engine),
         # 地图源：华为瓦片模板（key 已渲染，与各大地图 SDK 惯例一致，受域名白名单限制）
         "map_tile_url": settings.map_tile_url.replace("{key}", settings.map_api_key)
         if settings.map_api_key else "",
@@ -97,11 +98,14 @@ def _load_prefs() -> dict:
 
 
 @router.post("/prefs")
-async def save_prefs(request: Request, local_city_engine: str = Form("")):
+async def save_prefs(request: Request, local_city_engine: str = Form(""),
+                     national_engine: str = Form("")):
     """保存用户偏好（本机持久化 + 立即生效）。"""
     prefs = _load_prefs()
     if local_city_engine in ("clip", "llm"):
         prefs["local_city_engine"] = local_city_engine
+    if national_engine in ("local", "adaptive"):
+        prefs["national_engine"] = national_engine
     try:
         _prefs_path().parent.mkdir(parents=True, exist_ok=True)
         import json
@@ -110,7 +114,10 @@ async def save_prefs(request: Request, local_city_engine: str = Form("")):
         pass
     city = prefs.get("local_city_engine", settings.local_city_engine)
     settings.local_city_engine = city if city in ("clip", "llm") else "clip"
-    return {"ok": True, "local_city_engine": settings.local_city_engine}
+    nat = prefs.get("national_engine", settings.national_engine)
+    settings.national_engine = nat if nat in ("local", "adaptive") else "local"
+    return {"ok": True, "local_city_engine": settings.local_city_engine,
+            "national_engine": settings.national_engine}
 
 
 @router.get("/llm-configs")

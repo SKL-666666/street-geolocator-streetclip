@@ -12,6 +12,7 @@ export const api = reactive({
   warmingUp: false,    // 本地模型预热中（禁止上传，显示提示）
   warmupElapsed: 0,    // 预热已耗时（秒）
   localCityEngine: 'clip', // local 模式第二级：clip（本地免费）/ llm（云端猜城市名）
+  nationalEngine: 'local', // 国家级：local（纯本地，无论置信度信SC）/ adaptive（低置信调VLM复核）
   loaded: false,
 })
 
@@ -30,20 +31,23 @@ export async function fetchConfig() {
     api.warmingUp = !!data.warming_up
     api.warmupElapsed = data.warmup_elapsed || 0
     api.localCityEngine = data.local_city_engine === 'llm' ? 'llm' : 'clip'
+    api.nationalEngine = data.national_engine === 'adaptive' ? 'adaptive' : 'local'
     api.loaded = true
   } catch {
     api.loaded = false
   }
 }
 
-// 保存用户偏好（城市引擎，本机持久化）
-export async function savePrefs({ localCityEngine } = {}) {
+// 保存用户偏好（城市引擎 + 国家级引擎，本机持久化）
+export async function savePrefs({ localCityEngine, nationalEngine } = {}) {
   const form = new FormData()
   if (localCityEngine === 'clip' || localCityEngine === 'llm') form.append('local_city_engine', localCityEngine)
+  if (nationalEngine === 'local' || nationalEngine === 'adaptive') form.append('national_engine', nationalEngine)
   try {
     const res = await fetch('/api/prefs', { method: 'POST', body: form })
     const data = await res.json()
     api.localCityEngine = data.local_city_engine === 'llm' ? 'llm' : 'clip'
+    api.nationalEngine = data.national_engine === 'adaptive' ? 'adaptive' : 'local'
     return data
   } catch { /* 忽略 */ }
 }
