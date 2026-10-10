@@ -247,29 +247,27 @@ function ensureMap() {
   })
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
 }
-let mapSeq = 0
 let lastIds = []      // 最近一次分析的任务 id(串行为多个)
 let lastThumbs = []   // 对应缩略图 URL   // 渲染序号: 只画最新一次, 杜绝旧任务的地图点残留/串台
 function drawMap(cands) {
   ensureMap()
   if (!map) return
-  const seq = ++mapSeq
-  const paint = () => {
-    if (seq !== mapSeq) return   // 已有更新的渲染 → 本次作废
-    markers.forEach((m) => m.remove()); markers = []
-    const pts = cands.map((c, i) => ({ c, i, lon: c.lon, lat: c.lat }))
-    pts.forEach(({ i, lon, lat }) => {
-      const el = document.createElement('div')
-      el.style.cssText = `width:22px;height:22px;border-radius:50%;background:${i === 0 ? '#007AFF' : '#8E8E93'};color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.3);cursor:pointer`
-      el.textContent = i + 1
-      markers.push(new maplibregl.Marker({ element: el }).setLngLat([lon, lat]).addTo(map))
-    })
-    if (pts.length) {
-      const b = new maplibregl.LngLatBounds(); pts.forEach((p) => b.extend([p.lon, p.lat]))
-      map.fitBounds(b, { padding: 48, maxZoom: 10, duration: 600 })
-    }
+  // 无条件清空旧标记(不依赖 load 状态, 避免 once 不触发导致残留)
+  markers.forEach((m) => { try { m.remove() } catch (e) {} }); markers = []
+  const pts = (cands || []).filter((c) => Number.isFinite(c.lon) && Number.isFinite(c.lat))
+  pts.forEach((c, i) => {
+    const el = document.createElement('div')
+    el.style.cssText = `width:22px;height:22px;border-radius:50%;background:${i === 0 ? '#007AFF' : '#8E8E93'};color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.3);cursor:pointer`
+    el.textContent = i + 1
+    markers.push(new maplibregl.Marker({ element: el }).setLngLat([c.lon, c.lat]).addTo(map))
+  })
+  if (pts.length) {
+    const b = new maplibregl.LngLatBounds()
+    pts.forEach((c) => b.extend([c.lon, c.lat]))
+    // 地图未就绪时 jumpTo(即时, 不依赖动画/事件); 就绪后 fitBounds
+    if (map.loaded()) map.fitBounds(b, { padding: 48, maxZoom: 10, duration: 600 })
+    else map.once('load', () => map.fitBounds(b, { padding: 48, maxZoom: 10, duration: 600 }))
   }
-  if (map.loaded()) paint(); else map.once('load', paint)
 }
 
 // ===== 渲染结果 =====
