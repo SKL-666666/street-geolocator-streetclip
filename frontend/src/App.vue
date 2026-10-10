@@ -148,4 +148,12 @@ onMounted(() => {
   .header h1 { font-size: 17px; }
   .main { margin: 12px auto; padding: 0 10px; }
 }
+/* 侧边栏超窄（浏览器插件 sidePanel ~320-420px）：极紧凑，保证一屏可见 */
+@media (max-width: 460px) {
+  .header { padding: 8px 10px; gap: 6px; }
+  .header h1 { font-size: 14px; gap: 5px; }
+  .header h1 svg { width: 14px; height: 14px; }
+  .main { margin: 8px auto; padding: 0 6px; }
+  .icon-btn { width: 26px; height: 26px; }
+}
 </style>

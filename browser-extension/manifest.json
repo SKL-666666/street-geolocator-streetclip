@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "街景定位 Street Geolocator",
-  "version": "2.0.0",
-  "description": "浏览器侧边栏常驻：截取当前网页图像，交给本地 Street Geolocator 推断地点并就地查看地图。",
+  "version": "3.0.0",
+  "description": "浏览器侧边栏常驻：多种截图模式截取当前网页，交给本地 Street Geolocator 推断地点并就地查看地图。",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab", "tabs", "scripting", "storage", "sidePanel"],
   "host_permissions": [
+    "<all_urls>",
     "http://127.0.0.1:8200/*",
     "http://localhost:8200/*",
     "http://localhost:5173/*",

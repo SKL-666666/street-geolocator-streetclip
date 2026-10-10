@@ -371,6 +371,17 @@ async function submit() {
   .scope-card { flex: 1 1 auto; min-width: 120px; }
   .ce-opts { flex-direction: column; }
 }
+/* 侧边栏超窄：更小间距/字号，缩短总高度以适配一屏 */
+@media (max-width: 460px) {
+  .upload-card { padding: 12px; }
+  .upload-card h2 { font-size: 16px; }
+  .scopes { gap: 6px; }
+  .scope-card { padding: 8px 6px; font-size: 12.5px; }
+  .city-engine { padding: 6px 8px; gap: 4px; }
+  .dropzone-inner { padding: 18px 10px; }
+  .dz-icon { font-size: 28px; }
+  .thumb { width: 72px; height: 54px; }
+}
 </style>
 
 
