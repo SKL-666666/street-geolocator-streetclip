@@ -236,6 +236,8 @@ async function poll(taskId) {
 // ===== 地图 =====
 function ensureMap() {
   if (map || typeof maplibregl === 'undefined') return
+  const el = $('map')
+  if (!el || el.clientWidth === 0) return   // 容器无尺寸 → 不初始化(等可见)
   map = new maplibregl.Map({
     container: 'map',
     style: { version: 8,
@@ -276,7 +278,12 @@ function render(task) {
   emptyBox.classList.add('hidden')
   if (cands.length) {
     show(mapCard, true)
-    setTimeout(() => { map && map.resize(); drawMap(cands) }, 30)
+    // 等两帧确保容器有实际尺寸后再初始化/绘制(0尺寸会导致瓦片与点错位)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      ensureMap()
+      if (map) map.resize()
+      drawMap(cands)
+    }))
   } else { show(mapCard, false) }
   show(resultCard, true)
   candsBox.innerHTML = cands.slice(0, 3).map((c, i) => {
@@ -285,7 +292,7 @@ function render(task) {
     const conf = Math.min(100, Math.round((c.score || 0) * 100))
     const hint = (c.accuracy_hint || '').split('（')[0]
     return `<div class="cand" data-i="${i}"><span class="num">${i + 1}</span>
-      <span class="info"><span class="city">${city}</span><div class="meta">${country}${hint ? ' · ' + hint : ''}</div></span>
+      <span class="info"><span class="city">${city}</span><div class="meta">${country}${hint ? ' · ' + hint : ''} · ${c.lat.toFixed(2)},${c.lon.toFixed(2)}</div></span>
       <span class="conf">${conf}%</span></div>`
   }).join('')
   candsBox.querySelectorAll('.cand').forEach((el) => el.addEventListener('click', () => {
@@ -465,10 +472,14 @@ async function run() {
         setStatus(`已完成 ${done.length}/${jobs.length}`)
       }
       setStatus('')
-      // 存下全部结果, 展示列表
       lastIds = done.map((d) => d.id)
       lastThumbs = done.map((d) => d.url)
-      renderList(done)
+      if (done.length === 1) {
+        showListBtn(false)      // 单张: 直接显示详情, 不出列表
+        render(done[0].task)
+      } else {
+        renderList(done)        // 多张: 列表供选择
+      }
     }
     // 队列交给结果列表接管(缩略图 URL 保留), 清空当前队列
     queue = []
