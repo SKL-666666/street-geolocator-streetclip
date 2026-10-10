@@ -43,7 +43,11 @@ function go(v) {
 backBtn.addEventListener('click', () => go('home'))
 navSettings.addEventListener('click', () => go('settings'))
 navHistory.addEventListener('click', () => go('history'))
-themeBtn.addEventListener('click', () => { theme = theme === 'dark' ? 'light' : 'dark'; applyTheme(theme) })
+themeBtn.addEventListener('click', () => {
+  theme = theme === 'dark' ? 'light' : 'dark'
+  applyTheme(theme)
+  if (DD.theme) { DD.theme.value = theme; syncOne('theme') }   // 同步设置页下拉
+})
 
 // ===== 自定义下拉（替代原生 select）=====
 const DD = {}   // name -> {value, options}
@@ -90,18 +94,22 @@ document.addEventListener('click', () => document.querySelectorAll('.dd-menu').f
 // 设置页各下拉（值持久化）
 const PKEY = 'sg_prefs_ext'
 const savedPrefs = JSON.parse(localStorage.getItem(PKEY) || '{}')
-function persist() { localStorage.setItem(PKEY, JSON.stringify({
-  scope: DD.scope.value, national: DD.national.value, engine: DD.engine.value })) }
+function persistExt() { localStorage.setItem(PKEY, JSON.stringify({
+  scope: DD.scope.value, national: DD.national.value, engine: DD.engine.value,
+  shot: DD.shot.value, upmode: DD.upmode.value })) }
+const persist = persistExt
 
 setupDropdown('scope', persist)
 setupDropdown('national', persist)
 setupDropdown('engine', persist)
-setupDropdown('shot', (v) => { mode = v })
+setupDropdown('shot', (v) => { mode = v; persistExt() })
 setupDropdown('upmode', (v) => { upmode = v; syncUpSeg() })
 setupDropdown('theme', (v) => { theme = v; applyTheme(v) })
 if (savedPrefs.scope) DD.scope.value = savedPrefs.scope
 if (savedPrefs.national) DD.national.value = savedPrefs.national
 if (savedPrefs.engine) DD.engine.value = savedPrefs.engine
+if (savedPrefs.shot) { DD.shot.value = savedPrefs.shot; mode = savedPrefs.shot }
+if (savedPrefs.upmode) { DD.upmode.value = savedPrefs.upmode; upmode = savedPrefs.upmode }
 DD.theme.value = theme
 syncDropdowns()
 applyTheme(theme)   // DD 已就绪, 此时同步主题+下拉显示
@@ -140,7 +148,7 @@ function renderQueue() {
   const box = $('shotcard')
   show(box, queue.length > 0)
   box.innerHTML = queue.map((q, i) => `<div style="position:relative;border-bottom:.5px solid var(--sep)">
-    <img src="${q.url}" class="shot" />
+    <img src="${q.url}" class="shot" onerror="this.style.display='none'" />
     <button class="rm" data-i="${i}" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:14px;cursor:pointer">✕</button>
   </div>`).join('')
   box.querySelectorAll('.rm').forEach((b) => b.addEventListener('click', () => {
@@ -251,7 +259,11 @@ let lastIds = []      // 最近一次分析的任务 id(串行为多个)
 let lastThumbs = []   // 对应缩略图 URL   // 渲染序号: 只画最新一次, 杜绝旧任务的地图点残留/串台
 function drawMap(cands) {
   ensureMap()
-  if (!map) return
+  if (!map) {
+    // 容器此刻仍无尺寸 → 延迟重试(而非静默失败)
+    setTimeout(() => { ensureMap(); if (map) drawMap(cands) }, 120)
+    return
+  }
   // 无条件清空旧标记(不依赖 load 状态, 避免 once 不触发导致残留)
   markers.forEach((m) => { try { m.remove() } catch (e) {} }); markers = []
   const pts = (cands || []).filter((c) => Number.isFinite(c.lon) && Number.isFinite(c.lat))
@@ -264,9 +276,10 @@ function drawMap(cands) {
   if (pts.length) {
     const b = new maplibregl.LngLatBounds()
     pts.forEach((c) => b.extend([c.lon, c.lat]))
-    // 地图未就绪时 jumpTo(即时, 不依赖动画/事件); 就绪后 fitBounds
-    if (map.loaded()) map.fitBounds(b, { padding: 48, maxZoom: 10, duration: 600 })
-    else map.once('load', () => map.fitBounds(b, { padding: 48, maxZoom: 10, duration: 600 }))
+    // 直接 fitBounds —— 不做 loaded() 判断(它要求所有瓦片加载完, 常为 false 导致视角不更新)
+    // MapLibre 允许在地图未完全加载时调用; 单点用 setCenter 避免过度放大
+    if (pts.length === 1) map.flyTo({ center: [pts[0].lon, pts[0].lat], zoom: 9, duration: 700 })
+    else map.fitBounds(b, { padding: 48, maxZoom: 10, duration: 700 })
   }
 }
 
@@ -303,7 +316,11 @@ function render(task) {
   if (task.scene?.languages?.length) lines.push(`<b>语言</b>：${task.scene.languages.join(' / ')}`)
   if (task.gps) lines.push(`<b>EXIF GPS</b>：${task.gps.lat.toFixed(5)}, ${task.gps.lon.toFixed(5)}`)
   if (task.message) lines.push(`<b>结果</b>：${task.message}`)
-  if (lines.length) { show(infoCard, true); infoBox.innerHTML = lines.map((l) => `<div class="meta-line">${l}</div>`).join('') }
+  if (lines.length) {
+    show(infoCard, true); infoBox.innerHTML = lines.map((l) => `<div class="meta-line">${l}</div>`).join('')
+  } else {
+    show(infoCard, false); infoBox.innerHTML = ''   // 本次无信息 → 清空并隐藏(防残留上次)
+  }
 }
 
 // ===== 串行多图结果列表 =====
@@ -363,9 +380,10 @@ async function showTaskInHome(taskId) {
   go('home')
   try {
     const t = (await (await fetch(`${API}/api/tasks/${taskId}`)).json()).task
-    // 清空当前结果后渲染历史任务
     show(mapCard, false); show(resultCard, false); show(infoCard, false); emptyBox.classList.add('hidden')
     show(shotCard, false)
+    lastDone = []              // 历史进入: 清空列表态, 不显示"返回列表"
+    showListBtn(false)
     render(t)
   } catch (e) { setErr('加载失败：' + e.message) }
 }
@@ -437,15 +455,20 @@ async function takeShot() {
 // ===== 上传并分析（手动触发）=====
 async function run() {
   setErr(''); setBusy(true); setProg(0)
+  const ub = $('uploadBtn'); if (ub) ub.disabled = true
   show(mapCard, false); show(resultCard, false); show(infoCard, false)
   emptyBox.classList.add('hidden')
   try {
     await applyPrefs()
     if (!queue.length) throw new Error('请先截图')
     setStatus('提交中…')
+    if (upmode === 'fusion' && queue.length === 1) {
+      setStatus('并行同地需 2~3 张，已按单张分析')
+    }
     if (upmode === 'fusion' && queue.length >= 2) {
       // 并行同地: 合并为一个任务
       const f = new FormData()
+      if (queue.length > 3) setStatus(`并行同地最多 3 张，已取前 3 张`)
       queue.slice(0, 3).forEach((q, i) => f.append('files', q.blob, `shot${i}.png`))
       f.append('mode', 'local'); f.append('scope', DD.scope.value || 'world')
       const res = await fetch(`${API}/api/analyze-fusion`, { method: 'POST', body: f })
@@ -500,7 +523,11 @@ $('uploadBtn').addEventListener('click', run)
 capBtn.addEventListener('click', takeShot)
 reloadBtn.addEventListener('click', () => {
   show(mapCard, false); show(resultCard, false); show(infoCard, false)
-  queue.forEach((q) => URL.revokeObjectURL(q.url)); queue = []
+  // 只 revoke 当前队列里未被结果列表引用的 URL, 避免列表图裂
+  const used = new Set((lastDone || []).map((d) => d.url))
+  queue.forEach((q) => { if (!used.has(q.url)) URL.revokeObjectURL(q.url) })
+  queue = []; lastDone = []
+  showListBtn(false)
   renderQueue(); updateUploadBtn()
   setErr(''); setStatus(''); emptyBox.classList.remove('hidden')
 })
