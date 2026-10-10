@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <style>
-    /* 顶部工具条固定中性浅色（不跟随系统深色，避免浅色网页下顶部发黑） */
+    /* 顶部固定中性浅色（不跟随系统深色） */
     :root {
       --panel-bg: #ffffff; --panel-sub: #f5f7fa; --panel-text: #1f2937;
       --panel-muted: #6b7280; --panel-border: #e5e7eb;
@@ -16,67 +16,90 @@
       font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
       background: var(--panel-bg); color: var(--panel-text); font-size: 13px;
     }
-    /* 顶部：紧凑一行 */
     .bar {
-      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-      padding: 8px 10px; background: var(--panel-sub);
+      display: flex; flex-direction: column; gap: 5px;
+      padding: 7px 9px; background: var(--panel-sub);
       border-bottom: 1px solid var(--panel-border); flex-shrink: 0;
     }
-    .bar .title { font-weight: 700; font-size: 13px; white-space: nowrap; }
+    .row1 { display: flex; align-items: center; gap: 6px; }
+    .title { font-weight: 700; font-size: 13px; white-space: nowrap; }
     .spacer { flex: 1; }
-    /* 截图主按钮：显眼、大 */
+    .icon-btn {
+      padding: 5px 8px; border: 1px solid var(--panel-border); border-radius: 6px;
+      background: var(--panel-bg); color: var(--panel-muted); cursor: pointer; font-size: 12.5px;
+    }
+    .icon-btn:hover { background: var(--panel-border); color: var(--panel-text); }
+    /* 截图主按钮：显眼 */
     .cap {
-      padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer;
-      background: var(--brand); color: #fff; font-size: 13.5px; font-weight: 700;
+      padding: 7px 14px; border: none; border-radius: 7px; cursor: pointer;
+      background: var(--brand); color: #fff; font-size: 13px; font-weight: 700;
       box-shadow: 0 1px 3px rgba(79,131,224,.4); transition: background .15s;
     }
     .cap:hover { background: var(--brand-hover); }
     .cap:disabled { opacity: .5; cursor: not-allowed; }
-    /* 次级模式按钮组 */
-    .modes { display: flex; gap: 4px; width: 100%; margin-top: 4px; }
+    /* 截图模式：紧凑保留全部选项 */
+    .modes { display: flex; gap: 4px; }
     .mode {
-      flex: 1; padding: 5px 4px; border: 1px solid var(--panel-border); border-radius: 6px;
+      flex: 1; padding: 4px 3px; border: 1px solid var(--panel-border); border-radius: 6px;
       background: var(--panel-bg); color: var(--panel-muted); cursor: pointer;
-      font-size: 11.5px; text-align: center; transition: all .12s; white-space: nowrap;
+      font-size: 11px; text-align: center; transition: all .12s; white-space: nowrap;
     }
     .mode:hover { border-color: var(--brand); color: var(--panel-text); }
     .mode.on { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 600; }
-    .icon-btn {
-      padding: 6px 9px; border: 1px solid var(--panel-border); border-radius: 6px;
-      background: var(--panel-bg); color: var(--panel-muted); cursor: pointer; font-size: 13px;
+    /* 选项行：范围 + 引擎（紧凑保留） */
+    .opts { display: flex; gap: 4px; align-items: center; font-size: 11px; }
+    .opts label { color: var(--panel-muted); white-space: nowrap; }
+    .opts select {
+      flex: 1; padding: 3px 4px; border: 1px solid var(--panel-border); border-radius: 6px;
+      background: var(--panel-bg); color: var(--panel-text); font-size: 11px; min-width: 0;
     }
-    .icon-btn:hover { background: var(--panel-border); color: var(--panel-text); }
-    /* 状态/进度（细条，不占位） */
+    /* 状态/进度：细条，不占高度 */
     .line { flex-shrink: 0; display: none; }
     .line.show { display: block; }
-    #status { padding: 5px 10px; font-size: 11.5px; color: var(--panel-muted); background: var(--panel-sub); }
+    #status { padding: 4px 9px; font-size: 11px; color: var(--panel-muted); background: var(--panel-sub); }
     #progress { height: 3px; background: var(--panel-border); }
     #pfill { height: 100%; width: 0; background: linear-gradient(90deg, var(--brand), #3b82f6); transition: width .2s linear; }
-    #error { padding: 7px 10px; font-size: 12px; color: var(--danger); background: #fff5f5; }
-    /* iframe 撑满剩余空间（保证不翻页即可看全） */
+    #error { padding: 6px 9px; font-size: 11.5px; color: var(--danger); background: #fff5f5; }
+    /* iframe 撑满 */
     .frame-wrap { flex: 1; position: relative; min-height: 0; }
     #app-frame { width: 100%; height: 100%; border: 0; display: block; }
     .placeholder {
       position: absolute; inset: 0; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 8px; text-align: center;
-      padding: 20px; color: var(--panel-muted);
+      padding: 18px; color: var(--panel-muted);
     }
     .placeholder.hidden { display: none; }
-    .placeholder .big { font-size: 28px; }
+    .placeholder .big { font-size: 26px; }
     .placeholder .t { font-size: 12px; line-height: 1.6; max-width: 240px; }
   </style>
 </head>
 <body>
   <div class="bar">
-    <span class="title">📍 街景定位</span>
-    <span class="spacer"></span>
-    <button id="reload" class="icon-btn" title="重新加载界面">↻</button>
-    <button id="capture" class="cap">📷 截取当前页</button>
-    <!-- 截图模式 -->
+    <div class="row1">
+      <span class="title">📍 街景定位</span>
+      <span class="spacer"></span>
+      <button id="reload" class="icon-btn" title="重新加载界面">↻</button>
+      <button id="capture" class="cap">📷 截取当前页</button>
+    </div>
+    <!-- 截图模式（全部保留，紧凑一排） -->
     <div class="modes">
-      <div class="mode on" data-mode="visible">可见区域</div>
-      <div class="mode" data-mode="full">整页</div>
-      <div class="mode" data-mode="element">选择元素</div>
+      <div class="mode on" data-mode="visible" title="截取当前可见区域">可见区域</div>
+      <div class="mode" data-mode="full" title="滚动截取整页并拼接（上限8屏）">整页</div>
+      <div class="mode" data-mode="element" title="点击页面元素，仅截取该元素">选择元素</div>
+    </div>
+    <!-- 分析选项（紧凑保留） -->
+    <div class="opts">
+      <label>范围</label>
+      <select id="scope">
+        <option value="world">全世界</option>
+        <option value="no-cn">除中国大陆</option>
+        <option value="cn">中国模式</option>
+      </select>
+      <label>城市</label>
+      <select id="engine">
+        <option value="clip">本地模型</option>
+        <option value="llm">云端 LLM</option>
+      </select>
     </div>
   </div>
 
