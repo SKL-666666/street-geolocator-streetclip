@@ -1,143 +1,127 @@
-# Street Geolocator (StreetCLIP Edition) — 街景图片地理定位工具 / Street-View Image Geolocation Tool
+# Street Geolocator — 街景图片地理定位工具
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue) ![Vue3](https://img.shields.io/badge/Vue-3-green) ![FastAPI](https://img.shields.io/badge/FastAPI-0.1-orange)
+![Python](https://img.shields.io/badge/Python-3.10+-blue)
+![Vue3](https://img.shields.io/badge/Vue-3-green)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.1-orange)
+![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
-Upload a street-view photo → the app infers the location (country → city) and shows Top-3 candidate locations on a map. Runs on CPU, no GPU required.
-
-上传一张街景/街拍照片 → 应用自动推断拍摄地点（国家 → 城市），在地图上展示 Top-3 候选位置。纯 CPU 运行，无需 GPU。
-
----
-
-## ✨ 功能 / Features
-
-- **两级定位 / Two-stage geolocation**: 本地 StreetCLIP 判断国家 Top3 → 城市引擎定城市（本地 CLIP-B/16 免费，或云端 LLM 更准）
-  - Local StreetCLIP predicts Top-3 countries → city engine decides the city (local CLIP-B/16 free, or cloud LLM for higher accuracy)
-- **本地模型优先 / Local-model first**: 国家判断 100% 本地，无 API 成本；只有「云端 LLM 定城市」需要 API Key
-  - Country prediction is 100% local (zero API cost); only "cloud LLM city" needs an API key
-- **地图展示 / Map display**: Esri 底图（自动降级腾讯/高德），Top-3 候选点 + 点击联动
-  - Esri basemap (auto-fallback to Tencent/AMap), Top-3 candidates with click-to-focus
-- **Ctrl+V 粘贴 / Paste support**: 直接粘贴剪贴板图片即可分析
-- **打包分发 / Packaged app**: PyInstaller 打包，双击 exe 使用，适合分享给朋友
-  - PyInstaller package, double-click exe, ready to share
+上传一张街景/街拍照片 → 本地模型推断拍摄地点（国家 → 城市）→ 地图展示 Top-3 候选，可双击地图纠错。
+**纯 CPU 运行、本地优先、零 API 成本**，同时提供**网页版**与**浏览器侧边栏插件**。
 
 ---
 
-## 🚀 快速开始 / Quick Start
+## ✨ 核心功能
 
-### 方式一：打包版（分享给他人）/ Packaged app (for sharing)
+| 功能 | 说明 |
+|---|---|
+| **两级定位** | 本地 StreetCLIP 判国家 Top-3 → 该国城市池内判城市 |
+| **DINOv2 检索增强** | 189 张参考图库（39 国）检索投票，与 StreetCLIP 分数融合（国家级 +6.7pp） |
+| **多图分析** | 串行批量（各自结果）/ 并行同地（2~3 张合并为一个结果） |
+| **置信分诊** | 高置信直信本地；低置信可选云端 VLM 复核国家（开关控制） |
+| **双击纠错闭环** | 双击地图选正确位置 → 反查真实国家 → 自动加入检索图库（越用越准） |
+| **苹果风 UI** | 浅/深双主题、毛玻璃导航、iOS 系统色（网页与插件统一） |
+| **浏览器插件** | 侧边栏常驻，三截图模式（可见区域/整页/选择元素），地图内嵌不跳转 |
+| **三范围模式** | 全世界 / 除中国大陆 / 中国模式 |
 
-构建 / Build:
+---
 
-```bash
-cd backend
-pip install pyinstaller
-cd ..\frontend && npm run build
-cd ..\backend
-python -m PyInstaller --clean --noconfirm street-geolocator.spec
-# 产物：backend\dist\StreetGeolocator\（整个文件夹发给对方）
-# Output: backend\dist\StreetGeolocator\ (send the whole folder)
-```
+## 🚀 快速开始
 
-对方使用 / For the recipient:
+### 一键启动（推荐）
 
-1. 双击 `StreetGeolocator.exe`（无需安装 Python，权重已内置）
-2. 首次启动等待约 1 分钟预热（加载本地模型）
-3. 城市引擎选「本地 CLIP-B/16」→ 免费无需 Key；选「云端 LLM」→ 在设置页填写自己的智谱 API Key
+双击桌面 **`启动-街景定位.bat`**（或项目根 `启动.bat`）：
+- 自动清理端口 → 启后端(8200) → 启前端(5173) → 等预热 → 打开网页
 
-### 方式二：本地开发 / Local development
-
-**1. 后端 / Backend**
+### 手动启动
 
 ```bash
+# 后端（首次预热 40-90s：加载 StreetCLIP / DINOv2）
 cd backend
-python -m venv .venv
-# Windows: .venv\Scripts\activate     macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt      # 首次
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8200
-```
 
-**2. 前端 / Frontend**
-
-```bash
+# 前端
 cd frontend
-npm install
-npm run dev          # 开发模式
-npm run build        # 构建到 frontend/dist
+npm install                          # 首次
+npm run dev                          # → http://localhost:5173
 ```
 
-浏览器访问 / Open: http://127.0.0.1:8200
+### 浏览器插件
+
+1. `chrome://extensions` → 打开**开发者模式**
+2. **加载已解压的扩展程序** → 选 `browser-extension/` 目录
+3. 工具栏点图标 → 右侧**侧边栏常驻**（网页与插件共用同一后端）
+
+> 需 Chrome 114+（侧边栏 API）。桌面 `street-geolocator-插件-v11.zip` 亦可。
 
 ---
 
-## 🧠 架构 / Architecture
+## 🏗️ 技术架构
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  Frontend (Vue3 + MapLibre GL)  →  /api/analyze     │
-└──────────────────────┬──────────────────────────────┘
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│  Backend (FastAPI + Orchestrator)                   │
-│  ① 本地 StreetCLIP 判国家 Top3 (local, free)         │
-│  ② 城市引擎: 本地 CLIP-B/16 或 云端 LLM (Top3 国家)    │
-│  ③ 城市表坐标优先 → LLM 估算坐标校正 → 兜底             │
-│  ④ 预热机制: 本地模型加载完成后才开放上传               │
-└─────────────────────────────────────────────────────┘
+前端 (Vue3 + Vite + MapLibre)          ← 苹果风 UI，浅/深主题
+浏览器插件 (MV3 sidePanel + MapLibre)   ← 侧边栏常驻，独立渲染
+        │ POST /api/analyze (或 /analyze-fusion)
+        ▼
+后端 (FastAPI + asyncio)  backend/app/
+  ├─ pipeline/orchestrator.py   主流程（国家分诊/城市/候选/融合）
+  ├─ geokb/local_engine.py      StreetCLIP 国家+城市、特征复用、城市文本缓存
+  ├─ geokb/geo_lookup.py        坐标→国家（国界多边形）
+  ├─ retrieval/dino_geo.py      DINOv2 图库检索（融合证据）
+  ├─ retrieval/gallery_add.py   用户纠错图 → 入库（闭环）
+  ├─ llm/vlm_country.py         云端 VLM 复核国家（自适应模式，可选）
+  └─ api/routes.py              API 端点
 ```
 
-- **第一级 / Stage 1**: [StreetCLIP](https://huggingface.co/geolocal/StreetCLIP) 文本匹配判国家 Top3（本地 ViT-L/14@336）
-- **第二级 / Stage 2**: 城市引擎可切换 — 本地 [CLIP ViT-B/16](https://github.com/mlfoundations/open_clip) 或云端 LLM（智谱 GLM-4.6V-FlashX）
-- **坐标落点 / Coordinate resolution**: 7100 城表优先 → LLM 估算坐标最近城市校正 → 首都兜底
+**核心管线**：
+```
+图片 → StreetCLIP 编码一次（国家/城市共用）
+   ├─(并发) DINOv2 图库检索 → 分数融合（α=0.125）→ 国家 Top3
+   ├─ margin 分诊（自适应模式低置信调 VLM 复核）
+   └─ StreetCLIP 在该国城市池判城市 → 候选（置信标定 ~40%）
+```
+
+**模型**：StreetCLIP (ViT-L/14@336, 地理微调) · DINOv2-large (图库检索) · 小米 MiMo-v2.6-flash (可选 VLM 复核)
 
 ---
 
-## 🔒 隐私与许可 / Privacy & License
+## 📊 实测指标
 
-### 隐私 / Privacy
+| 指标 | 值 | 说明 |
+|---|---|---|
+| 国家级 Top-1 | **~63%** | 89 张混合测试集（SC 单独 56.2% + DINOv2 融合） |
+| 城市级 Top-1 | **~69%** | 32 张端到端（国家→城市链路） |
+| 单图耗时 | **6~10s**（热态） | 首次约 14s（含冷启动） |
+| 图库规模 | 189 张 / 39 国 | KartaView 采集，覆盖谷歌街景主要区域 |
 
-- **API Key 绝不入库**: 用户的 LLM API Key 存于本机 `backend/data/`（已被 .gitignore 排除），每人使用自己的 Key
-  - API keys are stored locally in `backend/data/` (git-ignored); each user uses their own key
-- **无遥测 / No telemetry**: 不上传任何图片或日志到第三方（除用户主动选择的云端 LLM 调用）
-
-### 模型版权声明 / Model Attribution
-
-本项目**复用了以下第三方预训练模型**，其版权归原作者所有。本项目仅调用推理，未重新训练、未修改其权重。若商用请自行核实各模型许可：
-
-This project **reuses the following third-party pretrained models**. All rights belong to their original authors. This project only performs inference — it does not retrain or modify their weights. Please verify each model's license before commercial use:
-
-| 模型 / Model | 来源 / Source | 用途 / Use | 许可 / License |
-|---|---|---|---|
-| **StreetCLIP**（基于 OpenAI CLIP ViT-L/14@336 骨干） | [geolocal/StreetCLIP](https://huggingface.co/geolocal/StreetCLIP) (HuggingFace) | 第一级国家分类 / Stage-1 country | **CC BY-NC 4.0（非商用）/ non-commercial**；骨干 CLIP 为 MIT |
-| **CLIP ViT-B/16** | [OpenAI CLIP](https://github.com/openai/CLIP) via [open_clip](https://github.com/mlfoundations/open_clip) | 第二级城市（本地引擎）/ Stage-2 city (local) | MIT (open_clip) |
-| **GLM-4.6V-FlashX** | [智谱 AI / Zhipu AI](https://open.bigmodel.cn) | 云端城市判断（可选）/ cloud city (optional) | 智谱服务条款 / Zhipu ToS |
-
-> 注：调研/试验阶段评估过但**最终产品未使用**的模型（如 GeoCLIP、OSV5M、DINOv2、SigLIP2、MixVPR 等）不在此列，本表仅列最终管线实际调用的模型。
->
-> Note: models evaluated during research but **not used in the final product** (e.g. GeoCLIP, OSV5M, DINOv2, SigLIP2, MixVPR) are not listed — this table only covers models actually invoked by the final pipeline.
-
-本项目自身代码采用 **MIT 许可证**（见 `LICENSE`）。The project's own code is MIT licensed (see `LICENSE`).
+> 测试集与全部评测脚本见 `bench_compare/`；优化探索与结论见 `docs/`。
 
 ---
 
-## 📁 目录结构 / Structure
+## 📁 目录结构
 
 ```
-backend/
-  app/           FastAPI 应用（管线/知识库/LLM 抽象/API）
-  models/        （git-ignored）本地模型权重，从 HuggingFace 下载
-  data/          （git-ignored）用户 Key/偏好/任务记录
-  dist/          （git-ignored）打包产物
-frontend/        Vue3 + Vite + MapLibre GL
-docs/            文档
+backend/          FastAPI 后端（管线/知识库/LLM/API）
+  app/            应用代码
+  data/           本机数据（图库/反馈/缓存/Key，已 git 忽略）
+  models/         模型权重（已 git 忽略，需自备）
+  scripts/        构建脚本（DINOv2 图库特征等）
+frontend/         Vue3 网页版
+browser-extension/ 浏览器插件（MV3，含本地 maplibre）
+bench_compare/    评测脚本 + 测试集 + 图库
+docs/             文档（按时间归档：08初探 / 09调研 / 10优化突破）
 ```
 
-## ⚠️ 权重获取 / Model Weights
+---
 
-`backend/models/` 被 git-ignored（体积大）。使用前需自行准备：
+## ⚖️ 许可与隐私
 
-- `backend/models/streetclip/` — StreetCLIP 权重 + CLIP 配置（tokenizer 等），从 [HuggingFace](https://huggingface.co/geolocal/StreetCLIP) 获取并放入
-- `backend/models/clipb16/` — open_clip ViT-B-16 权重（`open_clip_model.safetensors` + `open_clip_config.json`）
-- `backend/models_mixvpr/` — **无需下载**：MixVPR 地理先验是调研期功能（方案 5），当前产品流程已停用（`enable_prior=false`），不影响使用
-  - Not needed: the MixVPR geographic-prior feature was researched but is disabled in the final pipeline — you can skip this directory.
+- 项目自身代码 **MIT**
+- **API Key 仅存本机** `backend/data/`（已 git 忽略），无遥测
+- 第三方模型许可：StreetCLIP 骨干 CLIP 为 MIT，模型卡为 CC BY-NC 4.0（**非商用**）；商用前请自行核实
 
-打包时 spec 会自动收集模型目录进 exe。
+## 📖 更多文档
+
+- `docs/2026-10优化突破期/交接文档-2026-10-10.md` — 近期重大改动详解
+- `docs/2026-10优化突破期/准确率再突破研究-2026-10.md` — 准确率优化全记录（含已证伪路径）
+- `docs/2026-09调研期/归档-优化探索全记录.md` — 早期探索结论
