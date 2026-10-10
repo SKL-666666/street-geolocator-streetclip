@@ -15,7 +15,7 @@ const cameFromBatch = ref(false)   // 从批量列表进入详情 → 返回时�
 // 深色模式（localStorage 持久化，作用于 html.dark）
 const dark = ref(localStorage.getItem('theme') === 'dark')
 function applyTheme() {
-  document.documentElement.classList.toggle('dark', dark.value)
+  document.documentElement.dataset.theme = dark.value ? 'dark' : 'light' 
   localStorage.setItem('theme', dark.value ? 'dark' : 'light')
 }
 function toggleTheme() {
@@ -92,31 +92,22 @@ onMounted(() => {
 </script>
 
 <template>
-  <header class="header">
-    <h1 style="cursor:pointer" @click="onBack">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
-      Street Geolocator
-    </h1>
-    <div class="header-right">
-      <template v-if="api.loaded">
-        <span class="badge">{{ api.model }}</span>
-      </template>
-      <span v-else class="badge country">未连接</span>
-      <button class="btn btn-ghost icon-btn" title="历史记录" @click="view = 'history'">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-      </button>
-      <button class="btn btn-ghost icon-btn" :title="dark ? '切换亮色' : '切换深色'" @click="toggleTheme">
-        <!-- 月亮(亮色下点击变深) / 太阳(深色下点击变亮) -->
-        <svg v-if="!dark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-      </button>
-      <button class="btn btn-ghost icon-btn" title="设置" @click="openSetup">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      </button>
-    </div>
-  </header>
+  <div class="nav">
+    <button v-if="view !== 'upload'" class="nav-btn" title="返回" @click="onBack">‹</button>
+    <h1>{{ view === 'setup' ? '设置' : view === 'history' ? '历史记录' : view === 'result' ? '结果' : view === 'batch' ? '批量结果' : '街景定位' }}</h1>
+    <button v-if="view === 'upload'" class="nav-btn" title="历史记录" @click="view = 'history'">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+    </button>
+    <button v-if="view === 'upload'" class="nav-btn" :title="dark ? '切换浅色' : '切换深色'" @click="toggleTheme">
+      <svg v-if="!dark" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    </button>
+    <button v-if="view === 'upload'" class="nav-btn" title="设置" @click="openSetup">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
 
-  <main class="main">
+  <main class="wrap" style="padding-bottom:24px">
     <SetupView v-if="needSetup || view === 'setup'" @saved="onSetupSaved" @back="onBack" />
     <ResultView v-else-if="view === 'result'" :task-id="currentTask" @back="onBack" @retried="onRetried" />
     <BatchView v-else-if="isBatch" :task-ids="batchIds" @view="onViewTask" @back="onBack" @retry="onRetried" />
@@ -125,39 +116,5 @@ onMounted(() => {
   </main>
 </template>
 
-<style scoped>
-/* 苹果风毛玻璃导航栏 */
-.header {
-  position: sticky; top: 0; z-index: 100;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 20px;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: .5px solid var(--border);
-}
-.header h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; display: flex; align-items: center; gap: 7px; color: var(--text); }
-.header-right { display: flex; gap: 8px; align-items: center; }
-.btn-ghost { background: var(--bg-subtle); color: var(--text-muted); border-radius: 50%; padding: 0; }
-.btn-ghost:hover { background: var(--bg-hover); color: var(--text); }
-.icon-btn { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; }
-.main { max-width: 1100px; margin: 20px auto; padding: 0 16px; }
-.footer { text-align: center; padding: 16px; }
 
-/* 竖屏/窄屏适配（16:9 → 9:16） */
-@media (max-width: 640px) {
-  .header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
-  .header h1 { font-size: 17px; }
-  .main { margin: 12px auto; padding: 0 10px; }
-}
-/* 侧边栏超窄（浏览器插件 sidePanel ~320-420px）：极紧凑，保证一屏可见 */
-@media (max-width: 460px) {
-  .header { padding: 8px 10px; gap: 6px; }
-  .header h1 { font-size: 14px; gap: 5px; }
-  .header h1 svg { width: 14px; height: 14px; }
-  .main { margin: 8px auto; padding: 0 6px; }
-  .icon-btn { width: 26px; height: 26px; }
-}
-</style>
+
