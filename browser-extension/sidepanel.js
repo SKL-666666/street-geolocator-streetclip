@@ -21,7 +21,7 @@ function applyTheme(v) {
   syncDropdowns()
 }
 let theme = localStorage.getItem(THEME_KEY) || 'light'
-applyTheme(theme)
+// 注: 首次 applyTheme 移到下拉初始化之后(避免 DD 的 TDZ 引用错误)
 
 // ===== 视图切换 =====
 function go(v) {
@@ -94,6 +94,7 @@ if (savedPrefs.national) DD.national.value = savedPrefs.national
 if (savedPrefs.engine) DD.engine.value = savedPrefs.engine
 DD.theme.value = theme
 syncDropdowns()
+applyTheme(theme)   // DD 已就绪, 此时同步主题+下拉显示
 
 // ===== 状态 =====
 function show(el, on) { el.classList.toggle('hidden', !on) }
