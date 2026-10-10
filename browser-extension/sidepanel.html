@@ -3,117 +3,169 @@
 <head>
   <meta charset="UTF-8" />
   <style>
-    /* 顶部固定中性浅色（不跟随系统深色） */
+    /* 设计令牌（8pt 栅格 + 指定色板，中性为主 1 主色） */
     :root {
-      --panel-bg: #ffffff; --panel-sub: #f5f7fa; --panel-text: #1f2937;
-      --panel-muted: #6b7280; --panel-border: #e5e7eb;
-      --brand: #4f83e0; --brand-hover: #3b6fd4; --danger: #e8615e;
+      --bg: #F7F8FA; --card: #FFFFFF; --text: #1F2329; --text2: #646A73;
+      --border: #E5E6EB; --primary: #3370FF; --primary-hover: #245BDB;
+      --danger: #E5484D; --ok: #00B42A;
+      --sp1: 4px; --sp2: 8px; --sp3: 12px; --sp4: 16px; --sp5: 24px; --sp6: 32px;
+      --r: 6px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#1A1D21; --card:#23262B; --text:#E8EAED; --text2:#9AA0A6; --border:#33373D; }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
     body {
-      display: flex; flex-direction: column; overflow: hidden;
-      font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-      background: var(--panel-bg); color: var(--panel-text); font-size: 13px;
+      display: flex; flex-direction: column;
+      font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px; line-height: 1.5; color: var(--text); background: var(--bg);
+      overflow: hidden;
     }
-    .bar {
-      display: flex; flex-direction: column; gap: 5px;
-      padding: 7px 9px; background: var(--panel-sub);
-      border-bottom: 1px solid var(--panel-border); flex-shrink: 0;
+    /* ==== 顶部：标题 + 全局操作 ==== */
+    .top {
+      display: flex; align-items: center; gap: var(--sp2);
+      padding: var(--sp3) var(--sp3); background: var(--card);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
     }
-    .row1 { display: flex; align-items: center; gap: 6px; }
-    .title { font-weight: 700; font-size: 13px; white-space: nowrap; }
-    .spacer { flex: 1; }
-    .icon-btn {
-      padding: 5px 8px; border: 1px solid var(--panel-border); border-radius: 6px;
-      background: var(--panel-bg); color: var(--panel-muted); cursor: pointer; font-size: 12.5px;
+    .top h1 { font-size: 15px; font-weight: 600; }
+    .top .sp { flex: 1; }
+    .icobtn {
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border); border-radius: var(--r); background: var(--card);
+      color: var(--text2); cursor: pointer; font-size: 15px; transition: all .15s;
     }
-    .icon-btn:hover { background: var(--panel-border); color: var(--panel-text); }
-    /* 截图主按钮：显眼 */
-    .cap {
-      padding: 7px 14px; border: none; border-radius: 7px; cursor: pointer;
-      background: var(--brand); color: #fff; font-size: 13px; font-weight: 700;
-      box-shadow: 0 1px 3px rgba(79,131,224,.4); transition: background .15s;
+    .icobtn:hover { border-color: var(--primary); color: var(--primary); }
+    .icobtn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ==== 中部：核心任务区 ==== */
+    .main { flex: 1; overflow-y: auto; padding: var(--sp3); min-height: 0; }
+
+    /* 主操作：大、实心、唯一 */
+    .primary {
+      width: 100%; height: 40px; border: none; border-radius: var(--r); cursor: pointer;
+      background: var(--primary); color: #fff; font-size: 14px; font-weight: 600;
+      transition: background .15s;
     }
-    .cap:hover { background: var(--brand-hover); }
-    .cap:disabled { opacity: .5; cursor: not-allowed; }
-    /* 截图模式：紧凑保留全部选项 */
-    .modes { display: flex; gap: 4px; }
-    .mode {
-      flex: 1; padding: 4px 3px; border: 1px solid var(--panel-border); border-radius: 6px;
-      background: var(--panel-bg); color: var(--panel-muted); cursor: pointer;
-      font-size: 11px; text-align: center; transition: all .12s; white-space: nowrap;
+    .primary:hover { background: var(--primary-hover); }
+    .primary:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* 渐进披露：高级设置折叠 */
+    details.settings {
+      margin-top: var(--sp3); background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r);
     }
-    .mode:hover { border-color: var(--brand); color: var(--panel-text); }
-    .mode.on { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 600; }
-    /* 选项行：范围 + 引擎（紧凑保留） */
-    .opts { display: flex; gap: 4px; align-items: center; font-size: 11px; }
-    .opts label { color: var(--panel-muted); white-space: nowrap; }
-    .opts select {
-      flex: 1; padding: 3px 4px; border: 1px solid var(--panel-border); border-radius: 6px;
-      background: var(--panel-bg); color: var(--panel-text); font-size: 11px; min-width: 0;
+    details.settings summary {
+      padding: var(--sp2) var(--sp3); cursor: pointer; font-size: 13px; color: var(--text2);
+      list-style: none; user-select: none;
     }
-    /* 状态/进度：细条，不占高度 */
-    .line { flex-shrink: 0; display: none; }
-    .line.show { display: block; }
-    #status { padding: 4px 9px; font-size: 11px; color: var(--panel-muted); background: var(--panel-sub); }
-    #progress { height: 3px; background: var(--panel-border); }
-    #pfill { height: 100%; width: 0; background: linear-gradient(90deg, var(--brand), #3b82f6); transition: width .2s linear; }
-    #error { padding: 6px 9px; font-size: 11.5px; color: var(--danger); background: #fff5f5; }
-    /* iframe 撑满 */
-    .frame-wrap { flex: 1; position: relative; min-height: 0; }
-    #app-frame { width: 100%; height: 100%; border: 0; display: block; }
-    .placeholder {
-      position: absolute; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 8px; text-align: center;
-      padding: 18px; color: var(--panel-muted);
+    details.settings summary::-webkit-details-marker { display: none; }
+    details.settings summary::after { content: '▾'; float: right; transition: transform .15s; }
+    details.settings[open] summary::after { transform: rotate(180deg); }
+    details.settings .body { padding: 0 var(--sp3) var(--sp3); display: flex; flex-direction: column; gap: var(--sp2); }
+    .field { display: flex; flex-direction: column; gap: var(--sp1); }
+    .field label { font-size: 12px; color: var(--text2); }
+    .field select, .field input {
+      height: 32px; padding: 0 var(--sp2); border: 1px solid var(--border); border-radius: var(--r);
+      background: var(--bg); color: var(--text); font-size: 13px;
     }
-    .placeholder.hidden { display: none; }
-    .placeholder .big { font-size: 26px; }
-    .placeholder .t { font-size: 12px; line-height: 1.6; max-width: 240px; }
+    .seg { display: flex; gap: var(--sp1); }
+    .seg button {
+      flex: 1; height: 32px; border: 1px solid var(--border); border-radius: var(--r);
+      background: var(--card); color: var(--text2); font-size: 12px; cursor: pointer; transition: all .12s;
+    }
+    .seg button.on { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+    .seg button:hover:not(.on) { border-color: var(--primary); color: var(--primary); }
+
+    /* 状态条 */
+    .status { padding: var(--sp2) var(--sp3); font-size: 12px; color: var(--text2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .status.hide { display: none; }
+    .bar { height: 3px; background: var(--border); flex-shrink: 0; }
+    .bar.hide { display: none; }
+    .bar > i { display: block; height: 100%; width: 0; background: var(--primary); transition: width .2s; }
+
+    /* 结果区 */
+    .result { flex-shrink: 0; border-top: 1px solid var(--border); background: var(--card); max-height: 45%; overflow-y: auto; }
+    .result.hide { display: none; }
+    .res-head { padding: var(--sp2) var(--sp3); font-size: 12px; color: var(--text2); }
+    .cand { padding: var(--sp2) var(--sp3); border-bottom: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: var(--sp2); }
+    .cand:last-child { border-bottom: 0; }
+    .cand:hover { background: var(--bg); }
+    .cand .rank { width: 20px; height: 20px; border-radius: 50%; background: var(--border); color: var(--text2);
+      font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .cand.top .rank { background: var(--primary); color: #fff; }
+    .cand .info { flex: 1; min-width: 0; }
+    .cand .city { font-weight: 600; font-size: 13.5px; }
+    .cand .country { font-size: 12px; color: var(--text2); }
+    .cand .conf { font-size: 12px; color: var(--primary); font-weight: 600; }
+    .maplink { display: block; text-align: center; padding: var(--sp2); color: var(--primary);
+      font-size: 12.5px; cursor: pointer; text-decoration: none; border-top: 1px solid var(--border); }
+    .maplink:hover { text-decoration: underline; }
+
+    /* 预览（最近截图） */
+    .shot { margin-top: var(--sp3); border-radius: var(--r); border: 1px solid var(--border); width: 100%; display: none; }
+    .shot.show { display: block; }
+
+    /* 空状态 */
+    .empty { text-align: center; color: var(--text2); padding: var(--sp5) var(--sp3); font-size: 13px; line-height: 1.8; }
+    .empty .ico { font-size: 28px; display: block; margin-bottom: var(--sp2); }
+
+    .err { color: var(--danger); font-size: 12.5px; padding: var(--sp2) var(--sp3);
+      background: #FFF1F0; border-radius: var(--r); margin-top: var(--sp2); display: none; }
+    .err.show { display: block; }
   </style>
 </head>
 <body>
-  <div class="bar">
-    <div class="row1">
-      <span class="title">📍 街景定位</span>
-      <span class="spacer"></span>
-      <button id="reload" class="icon-btn" title="重新加载界面">↻</button>
-      <button id="capture" class="cap">📷 截取当前页</button>
-    </div>
-    <!-- 截图模式（全部保留，紧凑一排） -->
-    <div class="modes">
-      <div class="mode on" data-mode="visible" title="截取当前可见区域">可见区域</div>
-      <div class="mode" data-mode="full" title="滚动截取整页并拼接（上限8屏）">整页</div>
-      <div class="mode" data-mode="element" title="点击页面元素，仅截取该元素">选择元素</div>
-    </div>
-    <!-- 分析选项（紧凑保留） -->
-    <div class="opts">
-      <label>范围</label>
-      <select id="scope">
-        <option value="world">全世界</option>
-        <option value="no-cn">除中国大陆</option>
-        <option value="cn">中国模式</option>
-      </select>
-      <label>城市</label>
-      <select id="engine">
-        <option value="clip">本地模型</option>
-        <option value="llm">云端 LLM</option>
-      </select>
-    </div>
+  <!-- 顶部：标题 + 全局操作 -->
+  <div class="top">
+    <h1>街景定位</h1>
+    <span class="sp"></span>
+    <button id="reload" class="icobtn" title="清空重来">↻</button>
   </div>
 
-  <div id="status" class="line"></div>
-  <div id="progress" class="line"><div id="pfill"></div></div>
-  <div id="error" class="line"></div>
+  <div id="status" class="status hide"></div>
+  <div id="bar" class="bar hide"><i id="barfill"></i></div>
 
-  <div class="frame-wrap">
-    <iframe id="app-frame" src="about:blank"></iframe>
-    <div id="placeholder" class="placeholder">
-      <div class="big">🌐</div>
-      <div class="t">选截图模式 → 点「截取当前页」<br/>分析后在此显示地图与候选地点</div>
-    </div>
+  <!-- 中部：核心任务区 -->
+  <div class="main">
+    <button id="capture" class="primary">截取当前页并分析</button>
+
+    <!-- 高级设置：折叠（渐进披露） -->
+    <details class="settings">
+      <summary>更多设置</summary>
+      <div class="body">
+        <div class="field">
+          <label>截图范围</label>
+          <div class="seg" id="shotmode">
+            <button data-m="visible" class="on">可见区域</button>
+            <button data-m="full">整页</button>
+            <button data-m="element">选择元素</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>分析范围</label>
+          <select id="scope">
+            <option value="world">全世界</option>
+            <option value="no-cn">除中国大陆</option>
+            <option value="cn">中国模式</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>城市引擎</label>
+          <select id="engine">
+            <option value="clip">本地模型</option>
+            <option value="llm">云端 LLM</option>
+          </select>
+        </div>
+      </div>
+    </details>
+
+    <img id="shot" class="shot" alt="" />
+    <div id="error" class="err"></div>
   </div>
+
+  <!-- 结果区（底部，独立渲染，不依赖网页） -->
+  <div id="result" class="result hide"></div>
 
   <script src="sidepanel.js"></script>
 </body>

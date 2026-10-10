@@ -1,127 +1,116 @@
-// 侧边栏：多模式截图（直接调用 tabs API，不经 background 转发）→ 提交本地后端 → iframe 载入完整界面
+// 侧边栏（独立版）：截图 → 直连后端分析 → 自行渲染结果（不依赖网页，避免任务查询 404）
 const API = 'http://127.0.0.1:8200'
-const APP = 'http://localhost:5173'
+const APP = 'http://localhost:5173'   // 仅"在地图查看/纠错"时跳转
 
 const $ = (id) => document.getElementById(id)
 const capBtn = $('capture')
 const reloadBtn = $('reload')
 const statusEl = $('status')
-const progress = $('progress')
-const pfill = $('pfill')
+const bar = $('bar')
+const barfill = $('barfill')
 const errEl = $('error')
-const frame = $('app-frame')
-const placeholder = $('placeholder')
+const shot = $('shot')
+const resultBox = $('result')
 
 let mode = 'visible'
+let lastTaskId = ''
 
-function setStatus(msg) { statusEl.textContent = msg || ''; statusEl.classList.toggle('show', !!msg) }
-function setError(msg) { errEl.textContent = msg || ''; errEl.classList.toggle('show', !!msg) }
-function setBusy(b) { capBtn.disabled = b }
+const show = (el, on) => el.classList.toggle('hide', !on)
+function setStatus(m) { statusEl.textContent = m || ''; show(statusEl, !!m) }
+function setError(m) { errEl.textContent = m || ''; errEl.classList.toggle('show', !!m) }
+function setBusy(b) { capBtn.disabled = b; reloadBtn.disabled = b }
+function setProgress(p) { show(bar, p != null); if (p != null) barfill.style.width = Math.min(100, p) + '%' }
 
-document.querySelectorAll('.mode').forEach((el) => {
-  el.addEventListener('click', () => {
-    document.querySelectorAll('.mode').forEach((m) => m.classList.remove('on'))
-    el.classList.add('on')
-    mode = el.dataset.mode
+document.querySelectorAll('#shotmode button').forEach((b) => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#shotmode button').forEach((x) => x.classList.remove('on'))
+    b.classList.add('on'); mode = b.dataset.m
   })
 })
 
-// ---------- 截图（直接调用，与第一版同路径）----------
+// ---------- 截图 ----------
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab) throw new Error('无活动标签页')
-  if (/^(chrome|edge|about|chrome-extension|moz-extension):/i.test(tab.url || '')) {
-    throw new Error('此页面不允许截图（浏览器内部页），请切到普通网页')
+  if (/^(chrome|edge|about|chrome-extension|moz-extension|devtools):/i.test(tab.url || '')) {
+    throw new Error('浏览器内部页不允许截图，请切到普通网页')
   }
   return tab
 }
-
-async function captureVisible() {
-  const tab = await activeTab()
-  return await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' })
+async function shotVisible() {
+  const t = await activeTab()
+  return await chrome.tabs.captureVisibleTab(t.windowId, { format: 'png' })
 }
-
-async function captureFull() {
-  const tab = await activeTab()
-  const [meta] = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: () => ({
-      scrollH: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
-      viewH: window.innerHeight, scrollY: window.scrollY,
-    }),
-  })
-  const { scrollH, viewH, scrollY } = meta.result
+async function shotFull() {
+  const t = await activeTab()
+  const [m] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => ({
+    h: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
+    v: window.innerHeight, y: window.scrollY }) })
+  const { h, v, y } = m.result
   const frames = []
-  const pages = Math.min(Math.ceil(scrollH / viewH), 8)   // 上限 8 屏
-  for (let p = 0; p < pages; p++) {
-    const y = p * viewH
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: (yy) => window.scrollTo(0, yy), args: [y] })
-    await new Promise((r) => setTimeout(r, 300))
-    frames.push({ y, dataUrl: await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' }) })
+  const n = Math.min(Math.ceil(h / v), 8)
+  for (let i = 0; i < n; i++) {
+    await chrome.scripting.executeScript({ target: { tabId: t.id }, func: (yy) => window.scrollTo(0, yy), args: [i * v] })
+    await new Promise((r) => setTimeout(r, 280))
+    frames.push(await chrome.tabs.captureVisibleTab(t.windowId, { format: 'png' }))
   }
-  await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: (yy) => window.scrollTo(0, yy), args: [scrollY] })
-  return { frames, viewH, dpr: window.devicePixelRatio || 1 }
+  await chrome.scripting.executeScript({ target: { tabId: t.id }, func: (yy) => window.scrollTo(0, yy), args: [y] })
+  return frames
 }
-
-async function captureElement() {
-  const tab = await activeTab()
-  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' })
-  const [r] = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: () => new Promise((resolve) => {
-      const prev = document.body.style.cursor
-      document.body.style.cursor = 'crosshair'
-      const onClick = (e) => {
-        e.preventDefault(); e.stopPropagation()
-        document.body.style.cursor = prev
-        document.removeEventListener('click', onClick, true)
-        const b = e.target.getBoundingClientRect()
-        resolve({ x: b.x, y: b.y, w: b.width, h: b.height })
-      }
-      document.addEventListener('click', onClick, true)
-      setTimeout(() => { document.body.style.cursor = prev; document.removeEventListener('click', onClick, true); resolve(null) }, 10000)
-    }),
-  })
+async function shotElement() {
+  const t = await activeTab()
+  const dataUrl = await chrome.tabs.captureVisibleTab(t.windowId, { format: 'png' })
+  const [r] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => new Promise((res) => {
+    const p = document.body.style.cursor; document.body.style.cursor = 'crosshair'
+    const h = (e) => { e.preventDefault(); e.stopPropagation(); document.body.style.cursor = p
+      document.removeEventListener('click', h, true); const b = e.target.getBoundingClientRect()
+      res({ x: b.x, y: b.y, w: b.width, h: b.height }) }
+    document.addEventListener('click', h, true)
+    setTimeout(() => { document.body.style.cursor = p; document.removeEventListener('click', h, true); res(null) }, 10000)
+  }) })
   return { dataUrl, box: r.result }
 }
 
 // ---------- 合成 ----------
-function loadImg(u) { return new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.src = u }) }
+function loadImg(u) { return new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = u }) }
 function blobFrom(u) {
-  const [meta, b64] = u.split(',')
-  const mime = (meta.match(/data:(.*?);/) || [])[1] || 'image/png'
+  const [meta, b64] = u.split(','); const mime = (meta.match(/data:(.*?);/) || [])[1] || 'image/png'
   const bin = atob(b64); const a = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i)
   return new Blob([a], { type: mime })
 }
-async function composeFull(frames, viewH, dpr) {
-  const imgs = await Promise.all(frames.map((f) => loadImg(f.dataUrl)))
-  const w = imgs[0].width, fh = imgs[0].height            // 每屏实际像素高
-  const h = Math.min(fh * imgs.length, Math.round(viewH * dpr * imgs.length))
-  const cv = document.createElement('canvas'); cv.width = w; cv.height = h
+async function composeFull(frames) {
+  const imgs = await Promise.all(frames.map(loadImg))
+  const w = imgs[0].width, fh = imgs[0].height
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = fh * imgs.length
   const ctx = cv.getContext('2d')
-  imgs.forEach((im, i) => ctx.drawImage(im, 0, Math.round(i * fh)))
-  return await new Promise((res) => cv.toBlob(res, 'image/png'))
+  imgs.forEach((im, i) => ctx.drawImage(im, 0, i * fh))
+  return await new Promise((r) => cv.toBlob(r, 'image/png'))
 }
-async function composeElement(dataUrl, box, dpr) {
+async function composeElement(dataUrl, box) {
   if (!box) return blobFrom(dataUrl)
-  const im = await loadImg(dataUrl)
+  const im = await loadImg(dataUrl); const dpr = window.devicePixelRatio || 1
   const sx = Math.max(0, box.x * dpr), sy = Math.max(0, box.y * dpr)
-  const sw = Math.max(1, Math.min(im.width - sx, box.w * dpr))
-  const sh = Math.max(1, Math.min(im.height - sy, box.h * dpr))
+  const sw = Math.max(1, Math.min(im.width - sx, box.w * dpr)), sh = Math.max(1, Math.min(im.height - sy, box.h * dpr))
   const cv = document.createElement('canvas'); cv.width = sw; cv.height = sh
   cv.getContext('2d').drawImage(im, sx, sy, sw, sh, 0, 0, sw, sh)
-  return await new Promise((res) => cv.toBlob(res, 'image/png'))
+  return await new Promise((r) => cv.toBlob(r, 'image/png'))
 }
 
-// ---------- 提交 ----------
-async function analyzeBlob(blob) {
-  const scope = ($('scope') && $('scope').value) || 'world'
-  const form = new FormData()
-  form.append('file', blob, 'shot.png')
-  form.append('mode', 'local'); form.append('scope', scope)
-  const res = await fetch(`${API}/api/analyze`, { method: 'POST', body: form })
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${res.status}`) }
+// ---------- 分析 ----------
+async function applyEngine() {
+  try {
+    const f = new FormData(); f.append('local_city_engine', $('engine').value)
+    await fetch(`${API}/api/prefs`, { method: 'POST', body: f })
+  } catch { /* 忽略 */ }
+}
+async function submit(blob) {
+  const f = new FormData()
+  f.append('file', blob, 'shot.png')
+  f.append('mode', 'local')
+  f.append('scope', $('scope').value || 'world')
+  const res = await fetch(`${API}/api/analyze`, { method: 'POST', body: f })
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `提交失败 HTTP ${res.status}`) }
   return (await res.json()).task_id
 }
 async function poll(taskId) {
@@ -129,71 +118,90 @@ async function poll(taskId) {
   while (true) {
     await new Promise((r) => setTimeout(r, 700))
     let t
-    try { t = (await (await fetch(`${API}/api/tasks/${taskId}`)).json()).task } catch { continue }
-    pfill.style.width = Math.min(99, t.progress || 0) + '%'
+    try {
+      const res = await fetch(`${API}/api/tasks/${taskId}`)
+      if (!res.ok) throw new Error(`查询任务失败 HTTP ${res.status}（后端可能已重启）`)
+      t = (await res.json()).task
+    } catch (e) {
+      if (String(e.message).includes('查询任务失败')) throw e
+      continue
+    }
+    setProgress(t.progress || 0)
     setStatus(t.message || '分析中…')
     if (['succeeded', 'failed'].includes(t.status)) return t
-    if (Date.now() - t0 > 120000) return t
+    if (Date.now() - t0 > 120000) throw new Error('分析超时')
   }
 }
-function loadApp(taskId) {
-  placeholder.classList.add('hidden')
-  frame.src = taskId ? `${APP}/?task=${taskId}` : APP
+
+// ---------- 结果渲染（独立，不用网页）----------
+function renderResult(task) {
+  show(resultBox, true)
+  const cands = [...(task.candidates || [])].sort((a, b) => b.score - a.score).slice(0, 3)
+  if (!cands.length) { resultBox.innerHTML = '<div class="res-head">未得到候选地点</div>'; return }
+  let html = `<div class="res-head">候选地点（Top ${cands.length}）</div>`
+  cands.forEach((c, i) => {
+    const city = c.city || c.city_zh || '—'
+    const country = c.country_zh || c.country || ''
+    const conf = Math.min(100, Math.round((c.score || 0) * 100))
+    html += `<div class="cand${i === 0 ? ' top' : ''}">
+      <span class="rank">${i + 1}</span>
+      <span class="info"><span class="city">${city}</span>
+        <div class="country">${country}</div></span>
+      <span class="conf">${conf}%</span></div>`
+  })
+  if (lastTaskId) html += `<a class="maplink" href="${APP}/?task=${lastTaskId}" target="_blank">在地图中查看 / 纠错 →</a>`
+  resultBox.innerHTML = html
 }
 
-async function applyEngine() {
-  // 城市引擎是全局偏好：分析前同步到后端（失败不阻塞）
-  try {
-    const eng = ($('engine') && $('engine').value) || 'clip'
-    const form = new FormData(); form.append('local_city_engine', eng)
-    await fetch(`${API}/api/prefs`, { method: 'POST', body: form })
-  } catch { /* 忽略 */ }
-}
-
+// ---------- 主流程 ----------
 async function run() {
-  setError(''); setBusy(true)
-  await applyEngine()
-  progress.classList.add('show'); pfill.style.width = '0%'
-  const dpr = window.devicePixelRatio || 1
+  setError(''); show(resultBox, false); show(shot, false); setBusy(true); setProgress(0)
   try {
+    await applyEngine()
+    setStatus('截图中…')
     let blob
     if (mode === 'full') {
-      setStatus('滚动截图中…')
-      const { frames, viewH, dpr: d } = await captureFull()
+      const frames = await shotFull()
       setStatus(`拼接 ${frames.length} 屏…`)
-      blob = await composeFull(frames, viewH, d)
+      blob = await composeFull(frames)
     } else if (mode === 'element') {
-      setStatus('请在页面上点击要分析的元素…')
-      const { dataUrl, box } = await captureElement()
-      if (!box) throw new Error('未选择元素（超时）')
-      blob = await composeElement(dataUrl, box, dpr)
+      setStatus('请点击页面上的目标元素…')
+      const { dataUrl, box } = await shotElement()
+      if (!box) throw new Error('未选择元素')
+      blob = await composeElement(dataUrl, box)
     } else {
-      setStatus('截图中…')
-      blob = blobFrom(await captureVisible())
+      blob = blobFrom(await shotVisible())
     }
-    setStatus('提交分析…')
-    const taskId = await poll(await analyzeBlob(blob))
-    progress.classList.remove('show'); setStatus('')
-    loadApp(taskId)
+    shot.src = URL.createObjectURL(blob); show(shot, true)
+
+    setStatus('分析中…')
+    const taskId = await submit(blob)
+    lastTaskId = taskId
+    const t = await poll(taskId)
+    setStatus('')
+    if (t.status === 'failed') throw new Error(t.error || '分析失败')
+    renderResult(t)
   } catch (e) {
-    progress.classList.remove('show'); setStatus('')
-    setError('失败：' + (e.message || e) + '（若为截图失败，请确认已授予"所有网站"权限）')
-  } finally { setBusy(false) }
+    setStatus('')
+    setError('失败：' + (e.message || e))
+  } finally { setProgress(null); setBusy(false) }
 }
 
 capBtn.addEventListener('click', run)
-reloadBtn.addEventListener('click', () => { frame.src = frame.src })
+reloadBtn.addEventListener('click', () => {
+  show(resultBox, false); show(shot, false); setError(''); setStatus(''); lastTaskId = ''
+})
 
+// 初始化：探活
 ;(async () => {
   try {
     const r = await fetch(`${API}/api/health`)
-    if (!r.ok) throw new Error('bad')
+    if (!r.ok) throw new Error()
     const h = await r.json()
-    setStatus(h.warming_up ? '服务已连接（模型预热中…）' : '服务已连接 ✓')
-    setTimeout(() => setStatus(''), 3000)
-    loadApp(null)
+    setStatus(h.warming_up ? '服务已连接（模型预热中…）' : '服务已连接，可截图分析')
+    setTimeout(() => setStatus(''), 3500)
   } catch {
-    placeholder.classList.remove('hidden')
-    setError('未检测到本地服务。双击桌面「启动-街景定位.bat」启动后端8200 + 前端5173。')
+    setStatus('未检测到本地服务')
+    setError('请先启动本地服务：双击桌面「启动-街景定位.bat」（后端 8200）')
   }
 })()
