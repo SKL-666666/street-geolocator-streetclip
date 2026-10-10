@@ -19,6 +19,7 @@
       font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;
       font-size:15px; line-height:1.4; color:var(--text); background:var(--bg);
       display:flex; flex-direction:column; overflow:hidden; -webkit-font-smoothing:antialiased;
+      /* 侧边栏整体固定, 内容区(.view)可滑动 */
     }
     .nav {
       flex-shrink:0; padding:11px 14px 9px; display:flex; align-items:center; gap:8px;
@@ -34,9 +35,11 @@
     }
     .nav-btn:hover { background:color-mix(in srgb, var(--blue) 16%, var(--gray)); }
     .nav-btn:disabled { opacity:.35; cursor:not-allowed; }
-    .view { flex:1; overflow-y:auto; padding:12px; display:none; flex-direction:column; gap:12px; min-height:0; }
+    .view { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+      padding:12px; display:none; flex-direction:column; gap:12px; min-height:0; }
     .view.on { display:flex; }
-    .card { background:var(--card); border-radius:var(--r); overflow:hidden; }
+    .card { background:var(--card); border-radius:var(--r); }
+    .card.clip { overflow:hidden; }
     .pad { padding:14px 16px; }
     .btn-primary {
       width:100%; height:46px; border:none; border-radius:var(--rc); cursor:pointer;
@@ -73,9 +76,9 @@
     .dd-btn .tx { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .dd-btn .ar { color:var(--text3); font-size:11px; }
     .dd-menu {
-      position:absolute; right:0; top:calc(100% + 6px); z-index:50; min-width:180px;
-      background:color-mix(in srgb, var(--card) 96%, transparent); border-radius:12px;
-      box-shadow:0 8px 30px rgba(0,0,0,.18); padding:6px; display:none;
+      position:fixed; z-index:999; min-width:180px; display:none;
+      background:color-mix(in srgb, var(--card) 97%, transparent); border-radius:12px;
+      box-shadow:0 8px 30px rgba(0,0,0,.22); padding:6px;
       backdrop-filter:saturate(180%) blur(20px);
     }
     .dd-menu.show { display:block; }
@@ -152,20 +155,20 @@
 
   <div class="view on" id="v-home">
     <div id="error" class="err"></div>
-    <button id="capture" class="btn-primary">截取当前页并分析</button>
-    <div>
-      <div class="grp">截图范围</div>
-      <div class="seg" id="shotmode">
-        <button data-m="visible" class="on">可见区域</button>
-        <button data-m="full">整页</button>
-        <button data-m="element">选择元素</button>
+    <button id="capture" class="btn-primary">截取当前页</button>
+    <div class="card clip" id="shotcard" style="display:none"></div>
+    <div class="card hidden" id="uploadcard">
+      <div class="seg" id="upmode" style="margin:10px">
+        <button data-u="batch" class="on">串行（各自结果）</button>
+        <button data-u="fusion">并行同地（合一个）</button>
+      </div>
+      <div class="pad" style="padding-top:0;padding-bottom:12px">
+        <button id="uploadBtn" class="btn-primary" disabled>上传并分析（0 张）</button>
       </div>
     </div>
-    <div class="card" id="shotcard" style="display:none"><img id="shot" class="shot" alt="" /></div>
-    <div id="empty" class="card empty">
+    <div id="empty" class="empty">
       <div class="ico">🌍</div>
-      <div class="t1">截取网页图片开始定位</div>
-      <div class="t2">点上方按钮 → 结果显示地图与 Top3 地点</div>
+      <div class="t1">尚未分析</div>
     </div>
     <div id="mapcard" class="map-wrap hidden"><div id="map"></div></div>
     <div id="resultcard" class="card hidden"><div id="cands"></div></div>
@@ -174,8 +177,33 @@
 
   <div class="view" id="v-settings">
     <div>
+      <div class="grp">截图</div>
+      <div class="card">
+        <div class="row"><span class="lb">截图范围</span>
+          <div class="dd" data-dd="shot">
+            <button class="dd-btn"><span class="tx"></span><span class="ar">▾</span></button>
+            <div class="dd-menu">
+              <div class="dd-item" data-v="visible">可见区域</div>
+              <div class="dd-item" data-v="full">整页</div>
+              <div class="dd-item" data-v="element">选择元素</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
       <div class="grp">分析</div>
       <div class="card">
+        <div class="row"><span class="lb">多图方式</span>
+          <div class="dd" data-dd="upmode">
+            <button class="dd-btn"><span class="tx"></span><span class="ar">▾</span></button>
+            <div class="dd-menu">
+              <div class="dd-item" data-v="batch">串行（各自结果）</div>
+              <div class="dd-item" data-v="fusion">并行同地（合一个）</div>
+            </div>
+          </div>
+        </div>
         <div class="row"><span class="lb">分析范围</span>
           <div class="dd" data-dd="scope">
             <button class="dd-btn"><span class="tx"></span><span class="ar">▾</span></button>

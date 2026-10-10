@@ -9,7 +9,8 @@ const errEl = $('error'), emptyBox = $('empty'), shotCard = $('shotcard'), shot 
 const mapCard = $('mapcard'), resultCard = $('resultcard'), candsBox = $('cands')
 const infoCard = $('infocard'), infoBox = $('info'), scrollHome = $('v-home')
 
-let mode = 'visible'
+let mode = 'visible'   // 由设置页'截图范围'下拉控制
+let upmode = 'batch'
 let map = null, markers = []
 let view = 'home'   // home | settings | history
 
@@ -53,8 +54,15 @@ function setupDropdown(name, onPick) {
   const items = [...menu.querySelectorAll('.dd-item')]
   btn.addEventListener('click', (e) => {
     e.stopPropagation()
+    const opening = !menu.classList.contains('show')
     document.querySelectorAll('.dd-menu').forEach((m) => m.classList.remove('show'))
-    menu.classList.toggle('show')
+    if (!opening) return
+    // fixed 定位到按钮下方（右对齐），避免被容器裁剪
+    const r = btn.getBoundingClientRect()
+    menu.style.top = (r.bottom + 6) + 'px'
+    menu.style.right = Math.max(8, window.innerWidth - r.right) + 'px'
+    menu.style.left = 'auto'
+    menu.classList.add('show')
   })
   items.forEach((it) => it.addEventListener('click', () => {
     DD[name].value = it.dataset.v
@@ -88,6 +96,8 @@ function persist() { localStorage.setItem(PKEY, JSON.stringify({
 setupDropdown('scope', persist)
 setupDropdown('national', persist)
 setupDropdown('engine', persist)
+setupDropdown('shot', (v) => { mode = v })
+setupDropdown('upmode', (v) => { upmode = v; syncUpSeg() })
 setupDropdown('theme', (v) => { theme = v; applyTheme(v) })
 if (savedPrefs.scope) DD.scope.value = savedPrefs.scope
 if (savedPrefs.national) DD.national.value = savedPrefs.national
@@ -104,10 +114,7 @@ function setBusy(b) { capBtn.disabled = b }
 function setProg(p) { pbar.classList.toggle('show', p != null); if (p != null) pfill.style.width = Math.min(100, p) + '%' }
 
 // ===== 截图 =====
-document.querySelectorAll('#shotmode button').forEach((b) => b.addEventListener('click', () => {
-  document.querySelectorAll('#shotmode button').forEach((x) => x.classList.remove('on'))
-  b.classList.add('on'); mode = b.dataset.m
-}))
+// 截图范围由设置页下拉控制（见 setupDropdown('shot')）
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab) throw new Error('无活动标签页')
@@ -116,6 +123,32 @@ async function activeTab() {
   return tab
 }
 async function shotVisible() { const t = await activeTab(); return await chrome.tabs.captureVisibleTab(t.windowId, { format: 'png' }) }
+// 截图队列（多张，手动上传）
+let queue = []   // [{blob, url}]
+function updateUploadBtn() {
+  const btn = $('uploadBtn')
+  btn.textContent = `上传并分析（${queue.length} 张）`
+  btn.disabled = queue.length === 0
+  show($('uploadcard'), queue.length > 0)
+}
+function addToQueue(blob) {
+  queue.push({ blob, url: URL.createObjectURL(blob) })
+  renderQueue()
+  updateUploadBtn()
+}
+function renderQueue() {
+  const box = $('shotcard')
+  show(box, queue.length > 0)
+  box.innerHTML = queue.map((q, i) => `<div style="position:relative;border-bottom:.5px solid var(--sep)">
+    <img src="${q.url}" class="shot" />
+    <button class="rm" data-i="${i}" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:14px;cursor:pointer">✕</button>
+  </div>`).join('')
+  box.querySelectorAll('.rm').forEach((b) => b.addEventListener('click', () => {
+    const i = +b.dataset.i
+    URL.revokeObjectURL(queue[i].url); queue.splice(i, 1)
+    renderQueue(); updateUploadBtn()
+  }))
+}
 async function shotFull() {
   const t = await activeTab()
   const [m] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => ({
@@ -284,7 +317,7 @@ async function showTaskInHome(taskId) {
     const t = (await (await fetch(`${API}/api/tasks/${taskId}`)).json()).task
     // 清空当前结果后渲染历史任务
     show(mapCard, false); show(resultCard, false); show(infoCard, false); emptyBox.classList.add('hidden')
-    shotCard.style.display = 'none'
+    show(shotCard, false)
     render(t)
   } catch (e) { setErr('加载失败：' + e.message) }
 }
@@ -333,13 +366,10 @@ $('cfgAdd').addEventListener('click', async () => {
   } catch (e) { msg.textContent = '保存失败：' + e.message; msg.style.color = ''; msg.classList.add('show') }
 })
 
-// ===== 主流程 =====
-async function run() {
-  setErr(''); setBusy(true); setProg(0)
-  show(mapCard, false); show(resultCard, false); show(infoCard, false)
-  emptyBox.classList.add('hidden'); shotCard.style.display = 'none'
+// ===== 截图（入队，不自动分析）=====
+async function takeShot() {
+  setErr(''); capBtn.disabled = true
   try {
-    await applyPrefs()
     setStatus('截图中…')
     let blob
     if (mode === 'full') { const fr = await shotFull(); setStatus(`拼接 ${fr.length} 屏…`); blob = await composeFull(fr) }
@@ -349,22 +379,68 @@ async function run() {
       if (!box) throw new Error('未选择元素')
       blob = await composeElement(dataUrl, box)
     } else blob = blobFrom(await shotVisible())
+    addToQueue(blob)
+    setStatus('已加入队列，可继续截图或用下方按钮上传')
+    setTimeout(() => setStatus(''), 2500)
+  } catch (e) { setStatus(''); setErr('截图失败：' + (e.message || e)) }
+  finally { capBtn.disabled = false }
+}
 
-    shot.src = URL.createObjectURL(blob); shotCard.style.display = ''
+// ===== 上传并分析（手动触发）=====
+async function run() {
+  setErr(''); setBusy(true); setProg(0)
+  show(mapCard, false); show(resultCard, false); show(infoCard, false)
+  emptyBox.classList.add('hidden')
+  try {
+    await applyPrefs()
+    if (!queue.length) throw new Error('请先截图')
+    setStatus('提交中…')
+    let taskId
+    if (upmode === 'fusion' && queue.length >= 2) {
+      const f = new FormData()
+      queue.slice(0, 3).forEach((q, i) => f.append('files', q.blob, `shot${i}.png`))
+      f.append('mode', 'local'); f.append('scope', DD.scope.value || 'world')
+      const res = await fetch(`${API}/api/analyze-fusion`, { method: 'POST', body: f })
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `提交失败 HTTP ${res.status}`) }
+      taskId = (await res.json()).task_id
+    } else {
+      // 串行: 逐个提交, 展示第一张结果
+      const ids = []
+      for (const q of queue) ids.push(await submit(q.blob))
+      taskId = ids[0]
+    }
     setStatus('分析中…')
-    const t = await poll(await submit(blob))
+    const t = await poll(taskId)
     setStatus('')
     if (t.status === 'failed') throw new Error(t.error || '分析失败')
     render(t)
+    // 分析完清空队列
+    queue.forEach((q) => URL.revokeObjectURL(q.url)); queue = []
+    renderQueue(); updateUploadBtn()
     scrollHome.scrollTop = 0
   } catch (e) { setStatus(''); setErr('失败：' + (e.message || e)) }
   finally { setProg(null); setBusy(false) }
 }
-capBtn.addEventListener('click', run)
+
+// 上传模式 seg 事件(见上)
+document.querySelectorAll('#upmode button').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('#upmode button').forEach((x) => x.classList.remove('on'))
+  b.classList.add('on'); upmode = b.dataset.u
+  if (DD.upmode) { DD.upmode.value = upmode; syncOne('upmode') }
+}))
+function syncUpSeg() {
+  document.querySelectorAll('#upmode button').forEach((x) => x.classList.toggle('on', x.dataset.u === upmode))
+}
+$('uploadBtn').addEventListener('click', run)
+capBtn.addEventListener('click', takeShot)
 reloadBtn.addEventListener('click', () => {
   show(mapCard, false); show(resultCard, false); show(infoCard, false)
-  shotCard.style.display = 'none'; setErr(''); setStatus(''); emptyBox.classList.remove('hidden')
+  queue.forEach((q) => URL.revokeObjectURL(q.url)); queue = []
+  renderQueue(); updateUploadBtn()
+  setErr(''); setStatus(''); emptyBox.classList.remove('hidden')
 })
+
+updateUploadBtn()   // 初始化上传按钮状态
 
 // 探活
 ;(async () => {
