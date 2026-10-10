@@ -2,171 +2,212 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
+  <link rel="stylesheet" href="vendor/maplibre-gl.css" />
   <style>
-    /* 设计令牌（8pt 栅格 + 指定色板，中性为主 1 主色） */
+    /* ===== 苹果风设计令牌 ===== */
     :root {
-      --bg: #F7F8FA; --card: #FFFFFF; --text: #1F2329; --text2: #646A73;
-      --border: #E5E6EB; --primary: #3370FF; --primary-hover: #245BDB;
-      --danger: #E5484D; --ok: #00B42A;
-      --sp1: 4px; --sp2: 8px; --sp3: 12px; --sp4: 16px; --sp5: 24px; --sp6: 32px;
-      --r: 6px;
+      --bg: #F2F2F7;            /* iOS systemGroupedBackground */
+      --card: #FFFFFF;
+      --text: #1C1C1E;          /* label */
+      --text2: #8E8E93;         /* secondaryLabel */
+      --text3: #C7C7CC;         /* tertiaryLabel */
+      --sep: rgba(60,60,67,.12);/* separator */
+      --blue: #007AFF;          /* systemBlue */
+      --blue-h: #0A66D6;
+      --green: #34C759;
+      --red: #FF3B30;
+      --r-card: 14px; --r-ctl: 10px;
+      --sp: 8px;
     }
     @media (prefers-color-scheme: dark) {
-      :root { --bg:#1A1D21; --card:#23262B; --text:#E8EAED; --text2:#9AA0A6; --border:#33373D; }
+      :root {
+        --bg: #000; --card: #1C1C1E; --text: #FFFFFF; --text2: #98989F;
+        --text3: #48484A; --sep: rgba(84,84,88,.5); --blue: #0A84FF;
+      }
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; }
     body {
-      display: flex; flex-direction: column;
-      font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
-      font-size: 14px; line-height: 1.5; color: var(--text); background: var(--bg);
-      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 15px; line-height: 1.4; color: var(--text); background: var(--bg);
+      display: flex; flex-direction: column; overflow: hidden;
+      -webkit-font-smoothing: antialiased;
     }
-    /* ==== 顶部：标题 + 全局操作 ==== */
-    .top {
-      display: flex; align-items: center; gap: var(--sp2);
-      padding: var(--sp3) var(--sp3); background: var(--card);
-      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    /* 大标题导航栏（毛玻璃） */
+    .nav {
+      flex-shrink: 0; padding: 12px 16px 10px;
+      background: color-mix(in srgb, var(--bg) 80%, transparent);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: .5px solid var(--sep);
+      display: flex; align-items: center; gap: 8px;
     }
-    .top h1 { font-size: 15px; font-weight: 600; }
-    .top .sp { flex: 1; }
-    .icobtn {
-      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-      border: 1px solid var(--border); border-radius: var(--r); background: var(--card);
-      color: var(--text2); cursor: pointer; font-size: 15px; transition: all .15s;
+    .nav h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; flex: 1; }
+    .nav-btn {
+      width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
+      background: var(--sep); color: var(--blue); font-size: 15px;
+      display: flex; align-items: center; justify-content: center; transition: background .15s;
     }
-    .icobtn:hover { border-color: var(--primary); color: var(--primary); }
-    .icobtn:disabled { opacity: .4; cursor: not-allowed; }
+    .nav-btn:hover { background: color-mix(in srgb, var(--blue) 15%, var(--sep)); }
+    .nav-btn:disabled { opacity: .35; cursor: not-allowed; }
 
-    /* ==== 中部：核心任务区 ==== */
-    .main { flex: 1; overflow-y: auto; padding: var(--sp3); min-height: 0; }
+    /* 滚动内容 */
+    .scroll { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 
-    /* 主操作：大、实心、唯一 */
-    .primary {
-      width: 100%; height: 40px; border: none; border-radius: var(--r); cursor: pointer;
-      background: var(--primary); color: #fff; font-size: 14px; font-weight: 600;
-      transition: background .15s;
-    }
-    .primary:hover { background: var(--primary-hover); }
-    .primary:disabled { opacity: .5; cursor: not-allowed; }
+    /* 卡片（iOS inset grouped） */
+    .card { background: var(--card); border-radius: var(--r-card); overflow: hidden; }
+    .card-pad { padding: 14px 16px; }
 
-    /* 渐进披露：高级设置折叠 */
-    details.settings {
-      margin-top: var(--sp3); background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--r);
+    /* 主按钮（大、实心、蓝） */
+    .btn-primary {
+      width: 100%; height: 46px; border: none; border-radius: var(--r-ctl); cursor: pointer;
+      background: var(--blue); color: #fff; font-size: 16px; font-weight: 600;
+      transition: background .15s, transform .05s; font-family: inherit;
     }
-    details.settings summary {
-      padding: var(--sp2) var(--sp3); cursor: pointer; font-size: 13px; color: var(--text2);
-      list-style: none; user-select: none;
-    }
-    details.settings summary::-webkit-details-marker { display: none; }
-    details.settings summary::after { content: '▾'; float: right; transition: transform .15s; }
-    details.settings[open] summary::after { transform: rotate(180deg); }
-    details.settings .body { padding: 0 var(--sp3) var(--sp3); display: flex; flex-direction: column; gap: var(--sp2); }
-    .field { display: flex; flex-direction: column; gap: var(--sp1); }
-    .field label { font-size: 12px; color: var(--text2); }
-    .field select, .field input {
-      height: 32px; padding: 0 var(--sp2); border: 1px solid var(--border); border-radius: var(--r);
-      background: var(--bg); color: var(--text); font-size: 13px;
-    }
-    .seg { display: flex; gap: var(--sp1); }
+    .btn-primary:hover { background: var(--blue-h); }
+    .btn-primary:active { transform: scale(.985); }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* 分段控件（iOS segmented） */
+    .seg { display: flex; background: var(--sep); border-radius: 9px; padding: 2px; gap: 2px; }
     .seg button {
-      flex: 1; height: 32px; border: 1px solid var(--border); border-radius: var(--r);
-      background: var(--card); color: var(--text2); font-size: 12px; cursor: pointer; transition: all .12s;
+      flex: 1; height: 30px; border: none; border-radius: 7px; cursor: pointer;
+      background: transparent; color: var(--text); font-size: 12.5px; font-weight: 500;
+      transition: background .15s; font-family: inherit; white-space: nowrap;
     }
-    .seg button.on { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
-    .seg button:hover:not(.on) { border-color: var(--primary); color: var(--primary); }
+    .seg button.on { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
 
-    /* 状态条 */
-    .status { padding: var(--sp2) var(--sp3); font-size: 12px; color: var(--text2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-    .status.hide { display: none; }
-    .bar { height: 3px; background: var(--border); flex-shrink: 0; }
-    .bar.hide { display: none; }
-    .bar > i { display: block; height: 100%; width: 0; background: var(--primary); transition: width .2s; }
+    /* 列表行（iOS 设置风格） */
+    .row { display: flex; align-items: center; gap: 10px; padding: 11px 16px; min-height: 44px; }
+    .row + .row { border-top: .5px solid var(--sep); }
+    .row .label { flex: 1; font-size: 15px; }
+    .row select {
+      border: none; background: transparent; color: var(--text2); font-size: 15px;
+      text-align: right; font-family: inherit; cursor: pointer; max-width: 55%;
+    }
+    .seg-title { font-size: 12px; color: var(--text2); padding: 0 4px 6px; text-transform: uppercase; letter-spacing: .3px; }
 
-    /* 结果区 */
-    .result { flex-shrink: 0; border-top: 1px solid var(--border); background: var(--card); max-height: 45%; overflow-y: auto; }
-    .result.hide { display: none; }
-    .res-head { padding: var(--sp2) var(--sp3); font-size: 12px; color: var(--text2); }
-    .cand { padding: var(--sp2) var(--sp3); border-bottom: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: var(--sp2); }
-    .cand:last-child { border-bottom: 0; }
-    .cand:hover { background: var(--bg); }
-    .cand .rank { width: 20px; height: 20px; border-radius: 50%; background: var(--border); color: var(--text2);
-      font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .cand.top .rank { background: var(--primary); color: #fff; }
+    /* 地图 */
+    .map-wrap { border-radius: var(--r-card); overflow: hidden; height: 220px; position: relative; background: var(--sep); }
+    #map { position: absolute; inset: 0; }
+
+    /* 候选列表 */
+    .cand { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; transition: background .12s; }
+    .cand + .cand { border-top: .5px solid var(--sep); }
+    .cand:hover { background: color-mix(in srgb, var(--blue) 6%, transparent); }
+    .cand .num {
+      width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 600; background: var(--sep); color: var(--text2);
+    }
+    .cand:first-child .num { background: var(--blue); color: #fff; }
     .cand .info { flex: 1; min-width: 0; }
-    .cand .city { font-weight: 600; font-size: 13.5px; }
-    .cand .country { font-size: 12px; color: var(--text2); }
-    .cand .conf { font-size: 12px; color: var(--primary); font-weight: 600; }
-    .maplink { display: block; text-align: center; padding: var(--sp2); color: var(--primary);
-      font-size: 12.5px; cursor: pointer; text-decoration: none; border-top: 1px solid var(--border); }
-    .maplink:hover { text-decoration: underline; }
+    .cand .city { font-size: 15px; font-weight: 600; }
+    .cand .meta { font-size: 12.5px; color: var(--text2); margin-top: 1px; }
+    .cand .conf { font-size: 14px; font-weight: 600; color: var(--blue); }
 
-    /* 预览（最近截图） */
-    .shot { margin-top: var(--sp3); border-radius: var(--r); border: 1px solid var(--border); width: 100%; display: none; }
-    .shot.show { display: block; }
+    /* 元信息小块 */
+    .meta-line { font-size: 12.5px; color: var(--text2); line-height: 1.6; word-break: break-word; }
+    .meta-line b { color: var(--text); font-weight: 600; }
+
+    /* 状态 */
+    .status { flex-shrink: 0; padding: 8px 16px; font-size: 12.5px; color: var(--text2); display: none; }
+    .status.show { display: block; }
+    .pbar { flex-shrink: 0; height: 2.5px; background: var(--sep); display: none; }
+    .pbar.show { display: block; }
+    .pbar > i { display: block; height: 100%; width: 0; background: var(--blue); transition: width .25s ease; }
+    .err {
+      margin: 0 0 12px; padding: 12px 14px; border-radius: var(--r-ctl);
+      background: color-mix(in srgb, var(--red) 12%, transparent);
+      color: var(--red); font-size: 13px; display: none; line-height: 1.5;
+    }
+    .err.show { display: block; }
 
     /* 空状态 */
-    .empty { text-align: center; color: var(--text2); padding: var(--sp5) var(--sp3); font-size: 13px; line-height: 1.8; }
-    .empty .ico { font-size: 28px; display: block; margin-bottom: var(--sp2); }
+    .empty { text-align: center; padding: 40px 20px; color: var(--text2); }
+    .empty .ico { font-size: 40px; margin-bottom: 12px; opacity: .5; }
+    .empty .t1 { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .empty .t2 { font-size: 13px; line-height: 1.6; }
 
-    .err { color: var(--danger); font-size: 12.5px; padding: var(--sp2) var(--sp3);
-      background: #FFF1F0; border-radius: var(--r); margin-top: var(--sp2); display: none; }
-    .err.show { display: block; }
+    .shot { width: 100%; display: block; }
+    .shot.hide { display: none; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <!-- 顶部：标题 + 全局操作 -->
-  <div class="top">
+  <div class="nav">
     <h1>街景定位</h1>
-    <span class="sp"></span>
-    <button id="reload" class="icobtn" title="清空重来">↻</button>
+    <button id="reload" class="nav-btn" title="清空重来">↻</button>
   </div>
 
-  <div id="status" class="status hide"></div>
-  <div id="bar" class="bar hide"><i id="barfill"></i></div>
+  <div id="status" class="status"></div>
+  <div id="pbar" class="pbar"><i id="pbarfill"></i></div>
 
-  <!-- 中部：核心任务区 -->
-  <div class="main">
-    <button id="capture" class="primary">截取当前页并分析</button>
-
-    <!-- 高级设置：折叠（渐进披露） -->
-    <details class="settings">
-      <summary>更多设置</summary>
-      <div class="body">
-        <div class="field">
-          <label>截图范围</label>
-          <div class="seg" id="shotmode">
-            <button data-m="visible" class="on">可见区域</button>
-            <button data-m="full">整页</button>
-            <button data-m="element">选择元素</button>
-          </div>
-        </div>
-        <div class="field">
-          <label>分析范围</label>
-          <select id="scope">
-            <option value="world">全世界</option>
-            <option value="no-cn">除中国大陆</option>
-            <option value="cn">中国模式</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>城市引擎</label>
-          <select id="engine">
-            <option value="clip">本地模型</option>
-            <option value="llm">云端 LLM</option>
-          </select>
-        </div>
-      </div>
-    </details>
-
-    <img id="shot" class="shot" alt="" />
+  <div class="scroll" id="scroll">
     <div id="error" class="err"></div>
+
+    <!-- 主操作 -->
+    <button id="capture" class="btn-primary">截取当前页并分析</button>
+
+    <!-- 截图模式 -->
+    <div>
+      <div class="seg-title">截图范围</div>
+      <div class="seg" id="shotmode">
+        <button data-m="visible" class="on">可见区域</button>
+        <button data-m="full">整页</button>
+        <button data-m="element">选择元素</button>
+      </div>
+    </div>
+
+    <!-- 分析选项（对齐网页） -->
+    <div class="card">
+      <div class="row">
+        <span class="label">分析范围</span>
+        <select id="scope">
+          <option value="world">全世界</option>
+          <option value="no-cn">除中国大陆</option>
+          <option value="cn">中国模式</option>
+        </select>
+      </div>
+      <div class="row">
+        <span class="label">国家引擎</span>
+        <select id="national">
+          <option value="local">纯本地</option>
+          <option value="adaptive">自适应 VLM 复核</option>
+        </select>
+      </div>
+      <div class="row">
+        <span class="label">城市引擎</span>
+        <select id="engine">
+          <option value="clip">本地模型</option>
+          <option value="llm">云端 LLM</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 截图预览 -->
+    <div class="card" id="shotcard" style="display:none">
+      <img id="shot" class="shot" alt="" />
+    </div>
+
+    <!-- 空状态 -->
+    <div id="empty" class="card empty">
+      <div class="ico">🌍</div>
+      <div class="t1">拖入或截取一张图开始定位</div>
+      <div class="t2">点击上方按钮截取当前网页<br/>结果将显示地图与 Top3 候选地点</div>
+    </div>
+
+    <!-- 结果：地图 -->
+    <div id="mapcard" class="map-wrap hidden"><div id="map"></div></div>
+
+    <!-- 结果：候选 -->
+    <div id="resultcard" class="card hidden"><div id="cands"></div></div>
+
+    <!-- 结果：场景/证据 -->
+    <div id="infocard" class="card hidden"><div class="card-pad" id="info"></div></div>
   </div>
 
-  <!-- 结果区（底部，独立渲染，不依赖网页） -->
-  <div id="result" class="result hide"></div>
-
+  <script src="vendor/maplibre-gl.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

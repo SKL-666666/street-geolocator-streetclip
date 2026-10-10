@@ -1,16 +1,23 @@
 {
   "manifest_version": 3,
   "name": "街景定位 Street Geolocator",
-  "version": "3.0.0",
+  "version": "5.0.0",
   "description": "浏览器侧边栏常驻：多种截图模式截取当前网页，交给本地 Street Geolocator 推断地点并就地查看地图。",
   "minimum_chrome_version": "114",
-  "permissions": ["activeTab", "tabs", "scripting", "storage", "sidePanel"],
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "storage",
+    "sidePanel"
+  ],
   "host_permissions": [
     "<all_urls>",
     "http://127.0.0.1:8200/*",
     "http://localhost:8200/*",
     "http://localhost:5173/*",
-    "http://127.0.0.1:5173/*"
+    "http://127.0.0.1:5173/*",
+    "https://server.arcgisonline.com/*"
   ],
   "action": {
     "default_title": "街景定位（点击打开侧边栏）"
@@ -20,5 +27,8 @@
   },
   "background": {
     "service_worker": "background.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com"
   }
 }
