@@ -126,20 +126,24 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* 苹果风毛玻璃导航栏 */
 .header {
+  position: sticky; top: 0; z-index: 100;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: .5px solid var(--border);
 }
-.header h1 { font-size: 20px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+.header h1 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; display: flex; align-items: center; gap: 7px; color: var(--text); }
 .header-right { display: flex; gap: 8px; align-items: center; }
-.btn-ghost { background: var(--bg-subtle); color: var(--text-muted); padding: 6px 12px; font-size: 13px; }
+.btn-ghost { background: var(--bg-subtle); color: var(--text-muted); border-radius: 50%; padding: 0; }
 .btn-ghost:hover { background: var(--bg-hover); color: var(--text); }
 .icon-btn { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; }
-.main { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+.main { max-width: 1100px; margin: 20px auto; padding: 0 16px; }
 .footer { text-align: center; padding: 16px; }
 
 /* 竖屏/窄屏适配（16:9 → 9:16） */

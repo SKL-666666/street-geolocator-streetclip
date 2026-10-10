@@ -278,8 +278,9 @@ function drawMap(cands) {
     pts.forEach((c) => b.extend([c.lon, c.lat]))
     // 直接 fitBounds —— 不做 loaded() 判断(它要求所有瓦片加载完, 常为 false 导致视角不更新)
     // MapLibre 允许在地图未完全加载时调用; 单点用 setCenter 避免过度放大
-    if (pts.length === 1) map.flyTo({ center: [pts[0].lon, pts[0].lat], zoom: 9, duration: 700 })
-    else map.fitBounds(b, { padding: 48, maxZoom: 10, duration: 700 })
+    // 缩放过大会认不出地域 → 单点固定国家/大区级(zoom 5)，多点留大缓冲
+    if (pts.length === 1) map.flyTo({ center: [pts[0].lon, pts[0].lat], zoom: 5, duration: 700 })
+    else map.fitBounds(b, { padding: 120, maxZoom: 5, duration: 700 })
   }
 }
 
@@ -308,7 +309,7 @@ function render(task) {
   }).join('')
   candsBox.querySelectorAll('.cand').forEach((el) => el.addEventListener('click', () => {
     const c = cands[+el.dataset.i]
-    if (map && c) map.flyTo({ center: [c.lon, c.lat], zoom: 9, curve: 1.3, speed: 1.6 })
+    if (map && c) map.flyTo({ center: [c.lon, c.lat], zoom: 6, curve: 1.3, speed: 1.6 })
   }))
   const lines = []
   if (task.scene?.summary) lines.push(`<b>场景</b>：${task.scene.summary}`)
