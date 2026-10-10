@@ -245,10 +245,15 @@ function ensureMap() {
   })
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
 }
+let mapSeq = 0
+let lastIds = []      // 最近一次分析的任务 id(串行为多个)
+let lastThumbs = []   // 对应缩略图 URL   // 渲染序号: 只画最新一次, 杜绝旧任务的地图点残留/串台
 function drawMap(cands) {
   ensureMap()
   if (!map) return
+  const seq = ++mapSeq
   const paint = () => {
+    if (seq !== mapSeq) return   // 已有更新的渲染 → 本次作废
     markers.forEach((m) => m.remove()); markers = []
     const pts = cands.map((c, i) => ({ c, i, lon: c.lon, lat: c.lat }))
     pts.forEach(({ i, lon, lat }) => {
@@ -269,7 +274,10 @@ function drawMap(cands) {
 function render(task) {
   const cands = [...(task.candidates || [])].sort((a, b) => b.score - a.score)
   emptyBox.classList.add('hidden')
-  if (cands.length) { show(mapCard, true); setTimeout(() => { map && map.resize(); drawMap(cands) }, 30) }
+  if (cands.length) {
+    show(mapCard, true)
+    setTimeout(() => { map && map.resize(); drawMap(cands) }, 30)
+  } else { show(mapCard, false) }
   show(resultCard, true)
   candsBox.innerHTML = cands.slice(0, 3).map((c, i) => {
     const city = c.city || c.city_zh || '—'
@@ -291,6 +299,41 @@ function render(task) {
   if (task.gps) lines.push(`<b>EXIF GPS</b>：${task.gps.lat.toFixed(5)}, ${task.gps.lon.toFixed(5)}`)
   if (task.message) lines.push(`<b>结果</b>：${task.message}`)
   if (lines.length) { show(infoCard, true); infoBox.innerHTML = lines.map((l) => `<div class="meta-line">${l}</div>`).join('') }
+}
+
+// ===== 串行多图结果列表 =====
+let lastDone = []   // [{id,url,task}]
+function renderList(done) {
+  lastDone = done
+  emptyBox.classList.add('hidden')
+  show(mapCard, false); show(infoCard, false)
+  show(resultCard, true)
+  candsBox.innerHTML = `<div class="res-head grp" style="padding:10px 16px 4px">${done.length} 张分析结果（点选查看）</div>` +
+    done.map((d, i) => {
+      const c0 = [...(d.task.candidates || [])].sort((a, b) => b.score - a.score)[0]
+      const place = c0 ? `${c0.city || c0.city_zh || ''} ${c0.country_zh || c0.country || ''}`.trim() : (d.task.status === 'failed' ? '失败' : '无结果')
+      return `<div class="hist" data-i="${i}"><div class="th"><img src="${d.url}"/></div>
+        <div class="info"><div class="t1">${place}</div><div class="t2">第 ${i + 1} 张 · ${d.task.status === 'succeeded' ? '已完成' : d.task.status}</div></div>
+        <span class="chev">›</span></div>`
+    }).join('')
+  candsBox.querySelectorAll('.hist').forEach((el) => el.addEventListener('click', () => {
+    const d = lastDone[+el.dataset.i]
+    if (d) { showListBtn(true); render(d.task) }
+  }))
+  showListBtn(false)
+}
+function showListBtn(on) {
+  let b = $('backListBtn')
+  if (on) {
+    if (!b) {
+      b = document.createElement('button')
+      b.id = 'backListBtn'; b.className = 'btn-primary'
+      b.style.marginTop = '12px'; b.textContent = '‹ 返回照片列表'
+      b.addEventListener('click', () => { showListBtn(false); renderList(lastDone) })
+      $('v-home').appendChild(b)
+    }
+    b.classList.remove('hidden')
+  } else if (b) b.classList.add('hidden')
 }
 
 // ===== 历史页 =====
@@ -395,27 +438,40 @@ async function run() {
     await applyPrefs()
     if (!queue.length) throw new Error('请先截图')
     setStatus('提交中…')
-    let taskId
     if (upmode === 'fusion' && queue.length >= 2) {
+      // 并行同地: 合并为一个任务
       const f = new FormData()
       queue.slice(0, 3).forEach((q, i) => f.append('files', q.blob, `shot${i}.png`))
       f.append('mode', 'local'); f.append('scope', DD.scope.value || 'world')
       const res = await fetch(`${API}/api/analyze-fusion`, { method: 'POST', body: f })
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `提交失败 HTTP ${res.status}`) }
-      taskId = (await res.json()).task_id
+      const taskId = (await res.json()).task_id
+      setStatus('分析中…')
+      const t = await poll(taskId)
+      setStatus('')
+      if (t.status === 'failed') throw new Error(t.error || '分析失败')
+      lastIds = [taskId]; lastThumbs = [queue[0]?.url]
+      showListBtn(false)
+      render(t)
     } else {
-      // 串行: 逐个提交, 展示第一张结果
-      const ids = []
-      for (const q of queue) ids.push(await submit(q.blob))
-      taskId = ids[0]
+      // 串行: 全部提交, 结果汇总为"照片列表"由用户选择
+      const jobs = []
+      for (const q of queue) jobs.push({ id: await submit(q.blob), url: q.url })
+      setStatus(`分析中（${jobs.length} 张）…`)
+      const done = []
+      for (const j of jobs) {
+        const t = await poll(j.id)
+        done.push({ ...j, task: t })
+        setStatus(`已完成 ${done.length}/${jobs.length}`)
+      }
+      setStatus('')
+      // 存下全部结果, 展示列表
+      lastIds = done.map((d) => d.id)
+      lastThumbs = done.map((d) => d.url)
+      renderList(done)
     }
-    setStatus('分析中…')
-    const t = await poll(taskId)
-    setStatus('')
-    if (t.status === 'failed') throw new Error(t.error || '分析失败')
-    render(t)
-    // 分析完清空队列
-    queue.forEach((q) => URL.revokeObjectURL(q.url)); queue = []
+    // 队列交给结果列表接管(缩略图 URL 保留), 清空当前队列
+    queue = []
     renderQueue(); updateUploadBtn()
     scrollHome.scrollTop = 0
   } catch (e) { setStatus(''); setErr('失败：' + (e.message || e)) }
