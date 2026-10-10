@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    :root {
+      --bg: #ffffff; --bg-subtle: #f5f7fa; --text: #1f2937; --muted: #6b7280;
+      --border: #e5e7eb; --primary: #4f83e0; --primary-hover: #3b6fd4;
+      --accent: #17a2b8; --danger: #e8615e;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220; --bg-subtle: #131c30; --text: #eef4fb; --muted: #a8bcd6;
+        --border: #2a3f63; --primary: #3b82f6; --primary-hover: #60a5fa;
+        --accent: #22d3ee; --danger: #f87171;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 340px; padding: 14px; font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    h1 { font-size: 15px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .sub { font-size: 11.5px; color: var(--muted); margin-bottom: 12px; }
+    .btn {
+      width: 100%; padding: 10px; border: none; border-radius: 8px; cursor: pointer;
+      background: var(--primary); color: #fff; font-size: 14px; font-weight: 600;
+      transition: background .15s;
+    }
+    .btn:hover { background: var(--primary-hover); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-row { display: flex; gap: 8px; margin-top: 8px; }
+    .btn.ghost { background: var(--bg-subtle); color: var(--text); }
+    .btn.ghost:hover { background: var(--border); }
+    #preview { width: 100%; border-radius: 8px; margin-top: 10px; border: 1px solid var(--border); display: none; }
+    .progress { margin-top: 12px; display: none; }
+    .pbar { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+    .pfill { height: 100%; width: 0; background: linear-gradient(90deg, var(--primary), #3b82f6); transition: width .2s linear; }
+    .pmeta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-bottom: 6px; }
+    .result { margin-top: 12px; display: none; }
+    .cand { padding: 9px 11px; border-radius: 8px; background: var(--bg-subtle); margin-bottom: 6px; }
+    .cand.top { background: rgba(79,131,224,.14); }
+    .cand .c1 { font-weight: 700; font-size: 13.5px; }
+    .cand .c2 { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+    .cand .pct { float: right; color: var(--primary); font-weight: 700; font-size: 12.5px; }
+    .err { color: var(--danger); font-size: 12.5px; margin-top: 10px; text-align: center; }
+    .link { display: block; text-align: center; margin-top: 10px; font-size: 12.5px; color: var(--primary); cursor: pointer; text-decoration: none; }
+    .link:hover { text-decoration: underline; }
+    .hint { font-size: 11.5px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <h1>📍 街景定位</h1>
+  <div class="sub">截取当前网页 → 本地模型推断拍摄地点</div>
+
+  <button id="capture" class="btn">截取当前页面并分析</button>
+
+  <div class="btn-row">
+    <button id="captureFull" class="btn ghost" style="flex:1">整页截图</button>
+    <button id="openApp" class="btn ghost" style="flex:1">打开完整界面</button>
+  </div>
+
+  <img id="preview" alt="preview" />
+
+  <div id="progress" class="progress">
+    <div class="pmeta"><span id="pmsg">提交中…</span><span id="ppct">0%</span></div>
+    <div class="pbar"><div id="pfill" class="pfill"></div></div>
+  </div>
+
+  <div id="result" class="result"></div>
+  <div id="error" class="err"></div>
+
+  <div id="hint" class="hint">需先启动本地服务（默认 127.0.0.1:8200）。</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

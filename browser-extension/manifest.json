@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "街景定位 Street Geolocator",
+  "version": "1.0.0",
+  "description": "一键截取当前网页图像，交给本地 Street Geolocator 推断拍摄地点。",
+  "permissions": ["activeTab", "tabs", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1:8200/*", "http://localhost:8200/*"],
+  "action": {
+    "default_title": "街景定位",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

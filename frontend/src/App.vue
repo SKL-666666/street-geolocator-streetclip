@@ -76,6 +76,12 @@ let pollTimer = null
 
 onMounted(() => {
   applyTheme()   // 恢复深色/亮色主题
+  // 支持 ?task=<id> 直达（浏览器插件/分享链接）
+  const qid = new URLSearchParams(location.search).get('task')
+  if (qid) {
+    currentTask.value = qid
+    view.value = 'result'
+  }
   fetchConfig()
   // 预热轮询：本地模型未就绪时每 2s 刷新 config，就绪后停止
   pollTimer = setInterval(async () => {

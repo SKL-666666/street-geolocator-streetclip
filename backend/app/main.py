@@ -121,6 +121,8 @@ app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    # 浏览器插件来源（chrome-extension://<随机id> / moz-extension://）动态放行
+    allow_origin_regex=r"^(chrome|moz)-extension://.*$",
     allow_methods=["*"],
     allow_headers=["*"],
 )
